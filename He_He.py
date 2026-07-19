@@ -4,8 +4,6 @@ import networkx as nx
 import matplotlib.pyplot as plt
 import pandas as pd
 from string import ascii_uppercase
-import itertools
-from fractions import gcd
 
 # Implementation of He & He paper "Optimal Monotone Drawings of Trees", https://arxiv.org/pdf/1604.03921v1.pdf
 # Instructions: Use PathDrawAlgorithm() function
@@ -290,7 +288,7 @@ def PathDrawAlgorithm(g, root='A', display=False, save=False, filename="He_He.pn
 				(xp,yp) = gridPoints[node]
 				gridPoints.update({child:(x+xp,y+yp)})
 	
-	data = pd.DataFrame.from_dict(gridPoints).as_matrix()
+	data = pd.DataFrame.from_dict(gridPoints).to_numpy()
 	x = data[0]
 	y = data[1]
 	maxx = max(x)

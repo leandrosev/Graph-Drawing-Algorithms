@@ -6,11 +6,8 @@
 from itertools import permutations
 import networkx as nx
 import random
-import math
 from string import ascii_uppercase
-import numpy as np
 import matplotlib.pyplot as plt
-import Angelini as ang
 
 
 def isvalid(parenth):

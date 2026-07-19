@@ -1,9 +1,7 @@
 import numpy as np
-import math
 import networkx as nx
 import matplotlib.pyplot as plt
 import pandas as pd
-from tkinter import Tk
 np.seterr(divide='ignore', invalid='ignore')
 
 
@@ -144,7 +142,7 @@ def getGridArea(tree,root_node='A',display=False,save=False,algo="bfs",view=None
     gridpos.update({ node : (grid_map[node][1], grid_map[node][0]) })
 
 
-  data = pd.DataFrame.from_dict(gridpos).as_matrix()
+  data = pd.DataFrame.from_dict(gridpos).to_numpy()
   x = data[0]
   y = data[1]
   maxx = int(max(x))+1
