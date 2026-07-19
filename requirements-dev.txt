@@ -1,0 +1,4 @@
+# Development tooling (lint + format). Install with:
+#   pip install -r requirements-dev.txt
+-r requirements.txt
+ruff>=0.6

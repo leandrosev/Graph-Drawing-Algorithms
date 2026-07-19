@@ -1,0 +1,4 @@
+# Monotone graph-drawing algorithms — tested on Python 3.10
+numpy>=1.22,<3
+networkx>=2.6,<4
+matplotlib>=3.5,<4
