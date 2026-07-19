@@ -1,0 +1,571 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Living Mandala</title>
+<meta name="description" content="A complete k-ary tree drawn by the real Angelini BFS monotone-drawing algorithm, folded into kaleidoscopic symmetry and set breathing in 3D space.">
+<meta name="author" content="Leandros Evangelidakis">
+<meta name="theme-color" content="#05070f">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='92'>%F0%9F%AA%B7</text></svg>">
+<style>
+  /* Deliberately single-theme: this piece is a neon instrument floating in deep
+     space — there is no light-mode version of a galaxy. */
+  :root {
+    color-scheme: dark;
+    --ink: #e9edf8;
+    --muted: #8a94b2;
+    --hair: rgba(180, 190, 220, 0.16);
+    --panel: rgba(13, 18, 38, 0.58);
+    --panel-brd: rgba(180, 190, 220, 0.16);
+    --seed: #f3c765;
+    --focus: #7aa2ff;
+    --serif: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+    --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    font-family: var(--sans); color: var(--ink); overflow: hidden;
+    background: #05070f;
+  }
+  #stage { position: fixed; inset: 0; width: 100%; height: 100%; display: block; cursor: grab; }
+  #stage.dragging { cursor: grabbing; }
+  .vignette {
+    position: fixed; inset: 0; pointer-events: none;
+    background: radial-gradient(circle at 50% 46%, transparent 52%, rgba(2, 3, 10, 0.6) 100%);
+  }
+
+  .masthead {
+    position: fixed; top: 0; left: 0; max-width: min(42ch, 58vw);
+    padding: 24px 28px 40px; pointer-events: none;
+    background: linear-gradient(160deg, rgba(5,7,15,0.85) 0%, transparent 76%);
+  }
+  .eyebrow { font-size: 11px; letter-spacing: 0.22em; text-transform: uppercase;
+    color: var(--muted); font-weight: 600; margin-bottom: 10px; }
+  h1 { font-family: var(--serif); font-weight: 600; font-size: clamp(24px, 4vw, 42px);
+    line-height: 1.03; margin: 0 0 10px; text-wrap: balance; }
+  .dek { font-size: 13.5px; line-height: 1.55; color: var(--muted); margin: 0; max-width: 38ch; }
+  .dek b { color: var(--ink); font-weight: 600; }
+
+  .panel { background: var(--panel); border: 1px solid var(--panel-brd); border-radius: 12px;
+    -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); }
+
+  .readout { position: fixed; top: 22px; right: 22px; width: 232px; padding: 14px 16px;
+    font-family: var(--mono); font-size: 12px; line-height: 1.6; }
+  .readout .cap { font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase;
+    color: var(--muted); margin-bottom: 8px; display: flex; align-items: center; gap: 8px; }
+  .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--seed);
+    box-shadow: 0 0 8px var(--seed); flex: none; }
+  .readout .kv { display: flex; justify-content: space-between; font-variant-numeric: tabular-nums; }
+  .readout .kv span:first-child { color: var(--muted); }
+
+  .controls { position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%);
+    display: flex; align-items: center; gap: 16px; padding: 12px 16px; flex-wrap: wrap;
+    justify-content: center; max-width: calc(100vw - 32px); }
+  .group { display: flex; align-items: center; gap: 8px; }
+  .group + .group { border-left: 1px solid var(--hair); padding-left: 16px; }
+  .lbl { font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
+  .seg { display: flex; gap: 4px; }
+  button { font-family: var(--sans); font-size: 12.5px; color: var(--ink); background: transparent;
+    border: 1px solid var(--panel-brd); padding: 6px 10px; border-radius: 8px; cursor: pointer;
+    transition: background 0.15s, border-color 0.15s, color 0.15s; }
+  button:hover { border-color: var(--ink); }
+  button.active { background: var(--seed); border-color: var(--seed); color: #0a0e1c; }
+  input[type="range"] { -webkit-appearance: none; appearance: none; width: 86px; height: 4px;
+    border-radius: 3px; background: var(--hair); outline: none; cursor: pointer; }
+  input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 14px; height: 14px;
+    border-radius: 50%; background: var(--ink); border: 2px solid #05070f; }
+  input[type="range"]::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%;
+    background: var(--ink); border: 2px solid #05070f; }
+  .val { font-family: var(--mono); font-size: 11px; color: var(--muted); min-width: 2.2ch;
+    text-align: right; font-variant-numeric: tabular-nums; }
+  :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+  .credit { position: fixed; right: 24px; bottom: 84px; font-size: 11px; color: var(--muted);
+    text-align: right; font-family: var(--mono); pointer-events: none; }
+  .credit em { font-family: var(--serif); font-style: italic; color: var(--ink); }
+
+  @media (max-width: 780px) {
+    .readout, .credit { display: none; }
+    .masthead { max-width: 100vw; background: linear-gradient(180deg, rgba(5,7,15,0.9) 30%, transparent); }
+  }
+</style>
+</head>
+<body>
+
+<canvas id="stage"></canvas>
+<div class="vignette"></div>
+
+<div class="masthead">
+  <div class="eyebrow">Complete k-ary trees · the real drawing, kaleidoscoped</div>
+  <h1>Living Mandala</h1>
+  <p class="dek">Every petal is the <b>untouched Angelini BFS monotone drawing</b> of a
+    complete tree — folded into symmetry, tilted into space, breathing by depth.
+    <b>Drag</b> to orbit · <b>scroll</b> to zoom.</p>
+</div>
+
+<div class="readout panel">
+  <div class="cap"><span class="dot"></span>Angelini · BFS-based</div>
+  <div class="kv"><span>nodes</span><span id="rNodes">–</span></div>
+  <div class="kv"><span>grid</span><span id="rGrid">–</span></div>
+  <div class="kv"><span>branching</span><span id="rK">–</span></div>
+  <div class="kv"><span>mirror sectors</span><span id="rSec">–</span></div>
+</div>
+
+<div class="controls panel">
+  <div class="group">
+    <span class="lbl">Palette</span>
+    <div class="seg" id="palSeg">
+      <button data-p="aurora" class="active">Aurora</button>
+      <button data-p="solar">Solar</button>
+      <button data-p="ion">Ion</button>
+    </div>
+  </div>
+  <div class="group">
+    <span class="lbl">k</span>
+    <div class="seg" id="kSeg">
+      <button data-k="2">2</button>
+      <button data-k="3" class="active">3</button>
+      <button data-k="4">4</button>
+    </div>
+  </div>
+  <div class="group">
+    <span class="lbl">Depth</span>
+    <input type="range" id="depthR" min="2" max="4" step="1" value="4" aria-label="tree depth">
+    <span class="val" id="depthV">4</span>
+  </div>
+  <div class="group">
+    <span class="lbl">Petals</span>
+    <input type="range" id="petalR" min="3" max="8" step="1" value="6" aria-label="petal count">
+    <span class="val" id="petalV">6</span>
+  </div>
+  <div class="group">
+    <span class="lbl">Speed</span>
+    <input type="range" id="speedR" min="0" max="2.5" step="0.1" value="1" aria-label="animation speed">
+    <span class="val" id="speedV">1.0</span>
+  </div>
+</div>
+
+<div class="credit">after Angelini et&nbsp;al. (BFS)<br><em>Monotone Drawings of Trees</em> · L. Evangelidakis</div>
+
+<script>
+/* ---------------------------------------------------------------------------
+   Pure math — kept DOM-free in its own script block so the algorithm can be
+   unit-tested in Node exactly as it runs here.
+   fuscRatios / layoutAngelini are faithful ports of Angelini.get_grid_area
+   (BFS variant), verified against the Python implementation.
+--------------------------------------------------------------------------- */
+function fuscRatios(n) {
+  if (n <= 1) return [];
+  const v = new Array(2 * n).fill(0);
+  v[0] = 1;
+  for (let i = 0; i < n; i++) { v[2 * i] = v[i]; v[2 * i + 1] = v[i] + v[i + 1]; }
+  const a = [];
+  for (let k = 1; k < n; k++) a.push({ y: v[k + 1], x: v[k], ratio: v[k + 1] / v[k] });
+  a.sort((p, q) => p.ratio - q.ratio);
+  return a;
+}
+function layoutAngelini(tree, ratios) {
+  const { children, n } = tree;
+  const size = new Array(n).fill(1);
+  for (let i = n - 1; i >= 0; i--) for (const c of children[i]) size[i] += size[c];
+  const Tu = new Array(n); Tu[0] = ratios;
+  const coord = new Array(n); coord[0] = { y: 0, x: 0 };
+  for (let node = 0; node < n; node++) {
+    const ch = children[node]; if (!ch.length) continue;
+    const seq = Tu[node]; let acc = 0;
+    for (let j = 0; j < ch.length; j++) {
+      const c = ch[j];
+      const sl = seq.slice(acc, acc + size[c]); acc += size[c];
+      Tu[c] = sl;
+      const last = sl[sl.length - 1];
+      coord[c] = { y: last.y, x: last.x };
+    }
+  }
+  const pos = new Array(n); pos[0] = { x: 0, y: 0 };
+  for (let i = 0; i < n; i++)
+    for (const c of children[i])
+      pos[c] = { x: pos[i].x + coord[c].x, y: pos[i].y + coord[c].y };
+  return pos;
+}
+function completeKary(k, depth, cap) {
+  const parent = [-1]; let fr = [0];
+  for (let dd = 0; dd < depth; dd++) {
+    const nx = [];
+    for (const p of fr) for (let c = 0; c < k; c++) {
+      if (parent.length >= cap) break;
+      nx.push(parent.length); parent.push(p);
+    }
+    fr = nx;
+    if (parent.length >= cap) break;
+  }
+  const n = parent.length;
+  const children = Array.from({ length: n }, () => []);
+  for (let i = 1; i < n; i++) children[parent[i]].push(i);
+  return { parent, children, n };
+}
+// Renumber in DFS pre-order — the node ordering the algorithms assume
+// (the same ordering paren_to_nxgraph produces).
+function relabelDFS(tree) {
+  const order = [];
+  (function dfs(u) { order.push(u); for (const c of tree.children[u]) dfs(c); })(0);
+  const nid = new Array(tree.n); order.forEach((old, ni) => { nid[old] = ni; });
+  const parent = new Array(tree.n).fill(-1);
+  const children = Array.from({ length: tree.n }, () => []);
+  for (let old = 0; old < tree.n; old++) {
+    if (tree.parent[old] !== -1) parent[nid[old]] = nid[tree.parent[old]];
+    for (const c of tree.children[old]) children[nid[old]].push(nid[c]);
+  }
+  return { parent, children, n: tree.n };
+}
+/* depth-fraction t in [0,1] -> [h,s,l] along a palette's stops */
+function rampColor(t, stops) {
+  const x = Math.min(0.9999, Math.max(0, t)) * (stops.length - 1);
+  const i = Math.floor(x), f = x - i;
+  const a = stops[i], b = stops[i + 1];
+  let dh = b[0] - a[0];
+  if (dh > 180) dh -= 360;
+  if (dh < -180) dh += 360;
+  return [a[0] + dh * f, a[1] + (b[1] - a[1]) * f, a[2] + (b[2] - a[2]) * f];
+}
+</script>
+
+<script>
+(() => {
+  "use strict";
+  const TAU = Math.PI * 2;
+  const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  const PALETTES = {
+    aurora: { stops: [[165, 88, 56], [196, 92, 60], [255, 86, 64], [318, 88, 62]], core: [45, 96, 72], star: 205 },
+    solar:  { stops: [[48, 96, 60], [24, 96, 56], [352, 88, 60], [290, 82, 62]], core: [40, 100, 74], star: 30 },
+    ion:    { stops: [[185, 96, 62], [216, 96, 64], [265, 92, 66], [300, 92, 64]], core: [190, 100, 76], star: 225 },
+  };
+  let pal = PALETTES.aurora;
+
+  const DEPTH_CAP = { 2: 7, 3: 4, 4: 3 };
+  const SUB = 4;           // samples per edge (curved petal filaments)
+  const F = 3.4;           // perspective focal length (r is normalized to ~1)
+
+  // ===== scene ==============================================================
+  let scene = null;
+  function buildScene(k, depth, petals) {
+    const tree = relabelDFS(completeKary(k, depth, 400));
+    const pos = layoutAngelini(tree, fuscRatios(tree.n));
+    const dep = new Array(tree.n).fill(0);
+    for (let i = 1; i < tree.n; i++) dep[i] = dep[tree.parent[i]] + 1;
+    let mx = 0, my = 0, maxR = 1e-9;
+    for (const p of pos) {
+      mx = Math.max(mx, p.x); my = Math.max(my, p.y);
+      maxR = Math.max(maxR, Math.hypot(p.x, p.y));
+    }
+    const maxD = Math.max(1, ...dep);
+    const edges = [];
+    for (let i = 1; i < tree.n; i++) {
+      const a = pos[tree.parent[i]], b = pos[i];
+      const s = [];
+      for (let j = 0; j <= SUB; j++) {
+        const t = j / SUB;
+        const x = a.x + (b.x - a.x) * t, y = a.y + (b.y - a.y) * t;
+        s.push({
+          r: Math.hypot(x, y) / maxR,
+          phi: Math.atan2(y, x),          // 0..pi/2 (first quadrant)
+          pc: 0,                          // compressed angle, set below
+          dv: dep[tree.parent[i]] + (dep[i] - dep[tree.parent[i]]) * t,
+        });
+      }
+      edges.push({ d: dep[i], child: i, s });
+    }
+    const sc = { tree, edges, maxD, n: tree.n, grid: (mx + 1) + "×" + (my + 1), N: petals };
+    setPetals(sc, petals);
+    return sc;
+  }
+  function setPetals(sc, N) {
+    sc.N = N;
+    const ratio = 2 / N;                  // [0, pi/2] -> [0, pi/N]
+    for (const e of sc.edges) for (const smp of e.s) smp.pc = smp.phi * ratio;
+  }
+
+  // ===== canvas / camera ====================================================
+  const canvas = document.getElementById("stage");
+  const ctx = canvas.getContext("2d");
+  let W = 0, H = 0, dpr = 1, cx = 0, cy = 0, R = 0;
+  let stars = null;
+
+  function fit() {
+    dpr = Math.min(2, window.devicePixelRatio || 1);
+    W = canvas.clientWidth; H = canvas.clientHeight;
+    canvas.width = Math.round(W * dpr); canvas.height = Math.round(H * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    cx = W / 2; cy = H * 0.52;
+    R = Math.min(W, H) * 0.37;
+    buildStars();
+  }
+  function buildStars() {
+    stars = document.createElement("canvas");
+    stars.width = W + 60; stars.height = H + 60;
+    const g = stars.getContext("2d");
+    // nebula washes tinted to the palette
+    for (let i = 0; i < 3; i++) {
+      const nx = (0.2 + 0.6 * Math.random()) * stars.width;
+      const ny = (0.15 + 0.6 * Math.random()) * stars.height;
+      const nr = 260 + Math.random() * 340;
+      const grad = g.createRadialGradient(nx, ny, 0, nx, ny, nr);
+      grad.addColorStop(0, "hsla(" + (pal.star + i * 24) + ", 70%, 55%, 0.055)");
+      grad.addColorStop(1, "hsla(0, 0%, 0%, 0)");
+      g.fillStyle = grad;
+      g.beginPath(); g.arc(nx, ny, nr, 0, TAU); g.fill();
+    }
+    // stars
+    for (let i = 0; i < 270; i++) {
+      const sx = Math.random() * stars.width, sy = Math.random() * stars.height;
+      const sr = Math.random() < 0.92 ? 0.7 + Math.random() * 0.7 : 1.4 + Math.random() * 1.1;
+      g.fillStyle = "hsla(" + (200 + Math.random() * 40) + ", 60%, " + (70 + Math.random() * 25) + "%, " + (0.25 + Math.random() * 0.5) + ")";
+      g.beginPath(); g.arc(sx, sy, sr, 0, TAU); g.fill();
+    }
+  }
+
+  // camera state
+  let theta = 0.6, tilt = 0.98, tiltT = 0.98, zoom = 1, zoomT = 1, spinVel = 0;
+  let anim = 2.5;                          // animation clock (breath/motes phase)
+  let speed = 1;
+
+  // ===== motes: energy flowing outward from the root ========================
+  const MOTES = 120;
+  let motes = [];
+  function spawnMote(m) {
+    const roots = scene.tree.children[0];
+    m.e = roots[(Math.random() * roots.length) | 0] - 1;   // edge idx = child - 1
+    m.copy = (Math.random() * 2 * scene.N) | 0;
+    m.t = Math.random() * 0.25;
+    m.sp = 0.45 + Math.random() * 0.75;
+    m.lx = null; m.ly = null;
+  }
+  function resetMotes() { motes = Array.from({ length: MOTES }, () => { const m = {}; spawnMote(m); return m; }); }
+  function stepMote(m, dt) {
+    m.t += dt * m.sp;
+    if (m.t >= 1) {
+      const node = scene.edges[m.e].child;
+      const kids = scene.tree.children[node];
+      if (kids.length) {
+        m.e = kids[(Math.random() * kids.length) | 0] - 1;
+        m.t = 0; m.lx = null;
+      } else spawnMote(m);                 // reached a leaf: return to the core
+    }
+  }
+
+  // ===== projection =========================================================
+  let cosT = 1, sinT = 0;
+  function project(r, ang, out) {
+    const rr = r * zoom;
+    const x = rr * Math.cos(ang), y = rr * Math.sin(ang);
+    const y2 = y * cosT, z = y * sinT;
+    const p = F / (F + z);
+    out.x = cx + x * p * R;
+    out.y = cy - y2 * p * R;
+    out.p = p;
+  }
+  const P0 = { x: 0, y: 0, p: 1 }, P1 = { x: 0, y: 0, p: 1 };
+
+  // ===== render =============================================================
+  const bandA = [0.5, 0.8, 1.12], bandW = [0.8, 1, 1.3];
+  function bandOf(p) { return p < 0.94 ? 0 : p < 1.1 ? 1 : 2; }
+
+  function render() {
+    ctx.fillStyle = "#05070f";
+    ctx.fillRect(0, 0, W, H);
+    // starfield with a touch of parallax
+    ctx.drawImage(stars, -30 + Math.sin(theta * 0.35) * 9, -30 + (tilt - 0.98) * 46);
+
+    if (!scene) return;
+    cosT = Math.cos(tilt); sinT = Math.sin(tilt);
+    const N2 = 2 * scene.N, sec = Math.PI / scene.N;
+
+    ctx.globalCompositeOperation = "lighter";
+    ctx.lineCap = "round";
+
+    // -- bucket every projected segment by (depth, distance band) ------------
+    const buckets = new Map(), dots = new Map();
+    for (const e of scene.edges) {
+      for (let s = 0; s < N2; s++) {
+        const base = s * sec, mirrored = (s & 1) === 1;
+        let hx = 0, hy = 0, hp = 1, has = false;
+        for (const smp of e.s) {
+          const a0 = mirrored ? base + sec - smp.pc : base + smp.pc;
+          const breath = 1 + 0.05 * Math.sin(anim * 1.2 - smp.dv * 0.7);
+          project(smp.r * breath, a0 + theta, P0);
+          if (has) {
+            const pm = (hp + P0.p) / 2;
+            const key = e.d * 3 + bandOf(pm);
+            let path = buckets.get(key);
+            if (!path) { path = new Path2D(); buckets.set(key, path); }
+            path.moveTo(hx, hy); path.lineTo(P0.x, P0.y);
+          }
+          hx = P0.x; hy = P0.y; hp = P0.p; has = true;
+        }
+        // node dot at the edge tip
+        const dkey = e.d * 3 + bandOf(hp);
+        let dp = dots.get(dkey);
+        if (!dp) { dp = new Path2D(); dots.set(dkey, dp); }
+        const rad = (1.3 + 1.1 * (1 - e.d / scene.maxD)) * hp * zoom;
+        dp.moveTo(hx + rad, hy); dp.arc(hx, hy, rad, 0, TAU);
+      }
+    }
+
+    // -- stroke: wide bloom pass, then bright core pass ----------------------
+    for (const [key, path] of buckets) {
+      const d = (key / 3) | 0, band = key % 3;
+      const [h, s, l] = rampColor(d / scene.maxD, pal.stops);
+      const pulse = 0.7 + 0.3 * Math.sin(anim * 1.2 - d * 0.7 + 1.3);
+      ctx.lineWidth = 7 * bandW[band] * zoom;
+      ctx.strokeStyle = "hsla(" + h + "," + s + "%," + l + "%," + (0.05 * bandA[band] * pulse) + ")";
+      ctx.stroke(path);
+      ctx.lineWidth = 1.5 * bandW[band] * zoom;
+      ctx.strokeStyle = "hsla(" + h + "," + s + "%," + Math.min(86, l + 14) + "%," + (0.58 * bandA[band] * pulse) + ")";
+      ctx.stroke(path);
+    }
+    for (const [key, dp] of dots) {
+      const d = (key / 3) | 0, band = key % 3;
+      const [h, s, l] = rampColor(d / scene.maxD, pal.stops);
+      ctx.fillStyle = "hsla(" + h + "," + s + "%," + Math.min(92, l + 24) + "%," + (0.8 * bandA[band]) + ")";
+      ctx.fill(dp);
+    }
+
+    // -- the core ------------------------------------------------------------
+    const pulse = 1 + 0.1 * Math.sin(anim * 1.2 + 0.8);
+    const cr = 40 * zoom * pulse;
+    const [ch, cs, cl] = pal.core;
+    const cg = ctx.createRadialGradient(cx, cy, 0, cx, cy, cr);
+    cg.addColorStop(0, "hsla(" + ch + "," + cs + "%," + Math.min(92, cl + 16) + "%,0.95)");
+    cg.addColorStop(0.3, "hsla(" + ch + "," + cs + "%," + cl + "%,0.4)");
+    cg.addColorStop(1, "hsla(0,0%,0%,0)");
+    ctx.fillStyle = cg;
+    ctx.beginPath(); ctx.arc(cx, cy, cr, 0, TAU); ctx.fill();
+
+    // -- energy motes --------------------------------------------------------
+    for (const m of motes) {
+      const e = scene.edges[m.e];
+      const x = m.t * SUB, i0 = Math.min(SUB - 1, Math.floor(x)), f = x - i0;
+      const a = e.s[i0], b = e.s[i0 + 1];
+      const r = a.r + (b.r - a.r) * f;
+      const pc = a.pc + (b.pc - a.pc) * f;
+      const dv = a.dv + (b.dv - a.dv) * f;
+      const base = m.copy * sec, mirrored = (m.copy & 1) === 1;
+      const a0 = mirrored ? base + sec - pc : base + pc;
+      const breath = 1 + 0.05 * Math.sin(anim * 1.2 - dv * 0.7);
+      project(r * breath, a0 + theta, P1);
+      const [h, s, l] = rampColor(e.d / scene.maxD, pal.stops);
+      if (m.lx !== null) {                 // short light-trail
+        ctx.lineWidth = 1.1 * P1.p;
+        ctx.strokeStyle = "hsla(" + h + "," + s + "%,80%," + (0.35 * P1.p) + ")";
+        ctx.beginPath(); ctx.moveTo(m.lx, m.ly); ctx.lineTo(P1.x, P1.y); ctx.stroke();
+      }
+      ctx.fillStyle = "hsla(" + h + "," + s + "%,86%," + (0.9 * P1.p) + ")";
+      ctx.beginPath(); ctx.arc(P1.x, P1.y, 1.5 * P1.p * zoom, 0, TAU); ctx.fill();
+      m.lx = P1.x; m.ly = P1.y;
+    }
+
+    ctx.globalCompositeOperation = "source-over";
+  }
+
+  // ===== loop ===============================================================
+  let lastTs = 0, dragging = false;
+  function frame(ts) {
+    if (!lastTs) lastTs = ts;
+    let dt = (ts - lastTs) / 1000; lastTs = ts;
+    if (dt > 0.1) dt = 0.1;
+
+    anim += dt * speed;
+    theta += dt * 0.10 * speed;
+    if (!dragging) { theta += spinVel; spinVel *= 0.95; }
+    tilt += (tiltT + 0.04 * Math.sin(anim * 0.13) - tilt) * 0.06;
+    zoom += (zoomT - zoom) * 0.08;
+    for (const m of motes) stepMote(m, dt * speed);
+
+    render();
+    requestAnimationFrame(frame);
+  }
+
+  // ===== interaction: orbit + zoom ==========================================
+  let lastX = 0, lastY = 0;
+  canvas.addEventListener("pointerdown", (e) => {
+    dragging = true; lastX = e.clientX; lastY = e.clientY;
+    canvas.classList.add("dragging");
+    canvas.setPointerCapture(e.pointerId);
+  });
+  canvas.addEventListener("pointermove", (e) => {
+    if (!dragging) return;
+    const dx = e.clientX - lastX, dy = e.clientY - lastY;
+    lastX = e.clientX; lastY = e.clientY;
+    theta += dx * 0.005; spinVel = dx * 0.005;
+    tiltT = Math.min(1.42, Math.max(0.3, tiltT - dy * 0.004));
+    if (reduceMotion) render();
+  });
+  const endDrag = () => { dragging = false; canvas.classList.remove("dragging"); };
+  canvas.addEventListener("pointerup", endDrag);
+  canvas.addEventListener("pointercancel", endDrag);
+  canvas.addEventListener("wheel", (e) => {
+    e.preventDefault();
+    zoomT = Math.min(1.8, Math.max(0.6, zoomT * (e.deltaY < 0 ? 1.08 : 0.925)));
+    if (reduceMotion) { zoom = zoomT; render(); }
+  }, { passive: false });
+
+  // ===== controls ===========================================================
+  let kVal = 3, depthVal = 4, petalVal = 6;
+  const depthR = document.getElementById("depthR"), depthV = document.getElementById("depthV");
+  const petalR = document.getElementById("petalR"), petalV = document.getElementById("petalV");
+  const speedR = document.getElementById("speedR"), speedV = document.getElementById("speedV");
+
+  function refreshReadout() {
+    document.getElementById("rNodes").textContent = scene.n;
+    document.getElementById("rGrid").textContent = scene.grid;
+    document.getElementById("rK").textContent = "k = " + kVal;
+    document.getElementById("rSec").textContent = 2 * scene.N;
+  }
+  function rebuild() {
+    scene = buildScene(kVal, depthVal, petalVal);
+    resetMotes();
+    refreshReadout();
+    if (reduceMotion) render();
+  }
+
+  document.getElementById("palSeg").addEventListener("click", (e) => {
+    const b = e.target.closest("button"); if (!b) return;
+    for (const el of e.currentTarget.children) el.classList.toggle("active", el === b);
+    pal = PALETTES[b.dataset.p];
+    buildStars();
+    if (reduceMotion) render();
+  });
+  document.getElementById("kSeg").addEventListener("click", (e) => {
+    const b = e.target.closest("button"); if (!b) return;
+    for (const el of e.currentTarget.children) el.classList.toggle("active", el === b);
+    kVal = +b.dataset.k;
+    const cap = DEPTH_CAP[kVal];
+    depthR.max = cap;
+    if (depthVal > cap) { depthVal = cap; depthR.value = cap; depthV.textContent = cap; }
+    rebuild();
+  });
+  depthR.addEventListener("input", () => { depthVal = +depthR.value; depthV.textContent = depthVal; rebuild(); });
+  petalR.addEventListener("input", () => {
+    petalVal = +petalR.value; petalV.textContent = petalVal;
+    setPetals(scene, petalVal);
+    for (const m of motes) m.copy = m.copy % (2 * petalVal);
+    refreshReadout();
+    if (reduceMotion) render();
+  });
+  speedR.addEventListener("input", () => { speed = +speedR.value; speedV.textContent = speed.toFixed(1); });
+
+  window.addEventListener("resize", () => { fit(); if (reduceMotion) render(); });
+
+  // ===== go =================================================================
+  fit();
+  depthR.max = DEPTH_CAP[kVal];
+  rebuild();
+  if (reduceMotion) render();             // one composed still frame
+  else requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
