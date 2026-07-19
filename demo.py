@@ -25,9 +25,9 @@ import Tree_Operations as tops
 
 # Maps an algorithm name to a callable(graph, **draw_kwargs) -> [area, maxx, maxy, pos].
 ALGORITHMS = {
-    "bfs": lambda g, **kw: ang.getGridArea(g, algo="bfs", **kw),
-    "dfs": lambda g, **kw: ang.getGridArea(g, algo="dfs", **kw),
-    "hehe": lambda g, **kw: hh.PathDrawAlgorithm(g, **kw),
+    "bfs": lambda g, **kw: ang.get_grid_area(g, algo="bfs", **kw),
+    "dfs": lambda g, **kw: ang.get_grid_area(g, algo="dfs", **kw),
+    "hehe": lambda g, **kw: hh.path_draw_algorithm(g, **kw),
 }
 
 

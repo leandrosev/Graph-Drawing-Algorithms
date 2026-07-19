@@ -163,7 +163,7 @@ def _draw(
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
-def getGridArea(
+def get_grid_area(
     tree: nx.Graph,
     root_node: object = "A",
     display: bool = False,

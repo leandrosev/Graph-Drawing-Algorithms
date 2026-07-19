@@ -7,10 +7,10 @@ target-version = "py310"
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "UP", "B", "C4", "SIM"]
-# pep8-naming (N) is intentionally NOT enabled: the public API keeps its
-# original names (getGridArea, PathDrawAlgorithm, FareySeq, LDPD, genParenFast,
-# ...) and internal variables mirror the notation of the source papers
-# (R, D, K, S1/S2, T_u, ...). Renaming them would diverge from the references.
+# pep8-naming (N) is intentionally NOT enabled. Public functions are snake_case,
+# but two things would still trip N: internal variables that mirror the notation
+# of the source papers (R, D, K, S1/S2, T_u, ...), and the module filenames
+# (Angelini.py, He_He.py, Tree_Operations.py) which are kept for stable imports.
 ignore = [
     "B905",  # zip() without strict=: several zips have deliberately unequal lengths
 ]

@@ -45,8 +45,8 @@ import Angelini as ang
 import He_He as hh
 
 g = tops.paren_to_nxgraph("(()())(())")   # -> networkx tree rooted at 'A'
-area, maxx, maxy, positions = ang.getGridArea(g, algo="bfs")   # Angelini BFS-based
-area, maxx, maxy, positions = hh.PathDrawAlgorithm(g)          # He & He optimal
+area, maxx, maxy, positions = ang.get_grid_area(g, algo="bfs")   # Angelini BFS-based
+area, maxx, maxy, positions = hh.path_draw_algorithm(g)          # He & He optimal
 ```
 
 Invalid input raises `TypeError` / `ValueError` (e.g. a non-tree graph, an unbalanced

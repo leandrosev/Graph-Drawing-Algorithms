@@ -8,8 +8,8 @@ The idea: decompose the tree into a *length-decreasing path decomposition*
 primitive slope vectors from Farey sequences, assign each path a vector, and
 accumulate the vectors from the root to obtain grid coordinates.
 
-The public entry point is :func:`PathDrawAlgorithm`. The remaining functions
-(``FareySeq``, ``LDPD``, ``c_partition``, ``construct_prim_vectors`` ...) are
+The public entry point is :func:`path_draw_algorithm`. The remaining functions
+(``farey_seq``, ``ldpd``, ``c_partition``, ``construct_prim_vectors`` ...) are
 the building blocks and are kept individually importable.
 
 Assumptions
@@ -70,7 +70,7 @@ def invert(tup: Vector) -> Vector:
     return (tup[1], tup[0])
 
 
-def FareySeq(n: int, descending: bool = False) -> list[Vector]:
+def farey_seq(n: int, descending: bool = False) -> list[Vector]:
     """Return the ``n``-th Farey sequence closed under coordinate inversion.
 
     Each fraction ``a/b`` is represented as the tuple ``(a, b)``; the result is
@@ -96,8 +96,8 @@ def FareySeq(n: int, descending: bool = False) -> list[Vector]:
     return sorted(result, key=lambda x: x[1] / float(x[0]))
 
 
-def FareySeq2(n: int, descending: bool = False) -> list[Vector]:
-    """Like :func:`FareySeq`, but bracketed by the axis vectors.
+def farey_seq2(n: int, descending: bool = False) -> list[Vector]:
+    """Like :func:`farey_seq`, but bracketed by the axis vectors.
 
     The vertical vector ``(1, 0)`` is prepended and the horizontal vector
     ``(0, 1)`` appended, giving a sequence spanning the full first quadrant.
@@ -132,7 +132,7 @@ def _adjacency(tree: nx.Graph) -> dict[object, list]:
     return graph
 
 
-def PathDecomposition(tree: nx.Graph, root: object = "A") -> list[list]:
+def path_decomposition(tree: nx.Graph, root: object = "A") -> list[list]:
     """Decompose *tree* into leaf-to-junction paths (first leaf reaches root)."""
     graph = _adjacency(tree)
     leafs = [v for v in graph if graph[v] == []]
@@ -154,7 +154,7 @@ def PathDecomposition(tree: nx.Graph, root: object = "A") -> list[list]:
     return bset
 
 
-def LDPD(tree: nx.Graph, root: object = "A") -> list[list]:
+def ldpd(tree: nx.Graph, root: object = "A") -> list[list]:
     """Length-Decreasing Path Decomposition of *tree*.
 
     Returns a list of paths, ordered by non-increasing length, that partition
@@ -223,14 +223,14 @@ def construct_prim_vectors(f: int, d: int, n: int) -> list:
         between = source[begin + 1 : end]
         return between[0:howmany]
 
-    P = FareySeq(d)
+    P = farey_seq(d)
 
     P1 = P.index((1, 1))
     S1 = P[0:f]
     S2 = P[P1 + 1 : P1 + f + 1]
     R1 = list(S1) + [(1, 1)] + list(S2)
 
-    Pd2 = FareySeq2(d**2)
+    Pd2 = farey_seq2(d**2)
     R2 = []
     newR1 = [(1, 0)] + R1 + [(0, 1)]
 
@@ -247,7 +247,7 @@ def construct_prim_vectors(f: int, d: int, n: int) -> list:
             union_of_R.append((0, 1))
 
         R = []
-        jsource = FareySeq2(d**j)
+        jsource = farey_seq2(d**j)
         for first, second in zip(union_of_R, union_of_R[1:]):
             R += find_elements_between(jsource, first, second, f)
 
@@ -260,7 +260,7 @@ def construct_prim_vectors(f: int, d: int, n: int) -> list:
     return [union_of_R, All_Rs]
 
 
-def getleafs(tree: dict[object, list], start: object = None) -> list:
+def get_leafs(tree: dict[object, list], start: object = None) -> list:
     """Return the leaves (childless nodes) of an adjacency-list ``dict``."""
     return [node for node in tree if tree[node] == []]
 
@@ -319,7 +319,7 @@ def _draw_hehe(
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
-def PathDrawAlgorithm(
+def path_draw_algorithm(
     g: nx.Graph,
     root: object = "A",
     display: bool = False,
@@ -434,7 +434,7 @@ def _compute_positions(
     d: int,
 ) -> dict[object, Vector]:
     """Assign each node an ``(x, y)`` grid position via the He & He method."""
-    leafs = getleafs(graph, root)
+    leafs = get_leafs(graph, root)
     t = len(leafs)
     n = tree.number_of_nodes()
 
@@ -446,7 +446,7 @@ def _compute_positions(
 
     # NOTE: B and D deliberately share the same path-list objects; truncating
     # the paths in B below is observed through D when building b_levels.
-    B = LDPD(tree, root)
+    B = ldpd(tree, root)
     B = sorted(B, key=lambda path: for_relabel[path[0]])
     D = c_partition(tree, B, f + 1)
 

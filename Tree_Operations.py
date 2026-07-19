@@ -12,10 +12,10 @@ root, which is the ordering the drawing algorithms expect.
 Input conventions differ between the two exhaustive generators (kept for
 backward compatibility):
 
-* :func:`genParenLazy` takes the number of parenthesis *pairs* (non-root nodes).
-* :func:`genParenFast` takes the total number of *nodes*.
+* :func:`gen_paren_lazy` takes the number of parenthesis *pairs* (non-root nodes).
+* :func:`gen_paren_fast` takes the total number of *nodes*.
 
-So ``genParenLazy(3)`` and ``genParenFast(4)`` both enumerate the 4-node trees.
+So ``gen_paren_lazy(3)`` and ``gen_paren_fast(4)`` both enumerate the 4-node trees.
 
 @author: Evangelidakis Leandros
 @School of Applied Mathematics and Physical Sciences
@@ -35,7 +35,7 @@ _LABELS = list(ascii_uppercase) + [c1 + c2 for c1 in ascii_uppercase for c2 in a
 _MAX_NODES = len(_LABELS)
 
 
-def isvalid(parenth: str) -> bool:
+def is_valid(parenth: str) -> bool:
     """Return ``True`` if *parenth* is a balanced string of parentheses.
 
     The empty string is considered valid (it represents the root-only tree).
@@ -66,14 +66,14 @@ def isvalid(parenth: str) -> bool:
     return right == left
 
 
-def genParenLazy(n: int) -> list[str]:
+def gen_paren_lazy(n: int) -> list[str]:
     """Enumerate every balanced string with *n* pairs of parentheses (brute force).
 
     *n* is the number of pairs, i.e. the number of non-root nodes; the result
     describes all rooted trees with ``n + 1`` nodes.
 
-    Complexity: ``O((2n)!)`` permutations filtered by :func:`isvalid` -- use
-    :func:`genParenFast` for anything but tiny ``n``.
+    Complexity: ``O((2n)!)`` permutations filtered by :func:`is_valid` -- use
+    :func:`gen_paren_fast` for anything but tiny ``n``.
 
     Raises
     ------
@@ -83,10 +83,10 @@ def genParenLazy(n: int) -> list[str]:
     if not isinstance(n, int) or n < 0:
         raise ValueError(f"n must be a non-negative integer, got {n!r}")
     perms = {"".join(p) for p in permutations("(" * n + ")" * n)}
-    return [s for s in perms if isvalid(s)]
+    return [s for s in perms if is_valid(s)]
 
 
-def genParenFast(n: int) -> list[str]:
+def gen_paren_fast(n: int) -> list[str]:
     """Enumerate every balanced string describing an *n*-node rooted tree.
 
     *n* is the total number of nodes (including the root). Builds each string
@@ -139,7 +139,7 @@ def random_tree(n: int) -> str:
     while True:
         random.shuffle(chars)
         parenth = "".join(chars)
-        if isvalid(parenth):
+        if is_valid(parenth):
             return parenth
 
 
@@ -159,7 +159,7 @@ def paren_to_nxgraph(parenthesis: str) -> nx.Graph:
     """
     if not isinstance(parenthesis, str):
         raise TypeError(f"expected a string, got {type(parenthesis).__name__!r}")
-    if not isvalid(parenthesis):
+    if not is_valid(parenthesis):
         raise ValueError(f"not a valid balanced-parenthesis string: {parenthesis!r}")
 
     labels = _LABELS.copy()
