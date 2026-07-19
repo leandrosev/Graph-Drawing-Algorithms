@@ -103,13 +103,14 @@
 <div class="masthead">
   <div class="eyebrow">Real monotone drawings, kaleidoscoped</div>
   <h1>Living Mandala</h1>
-  <p class="dek">Every petal is the <b>untouched Angelini BFS monotone drawing</b> of a
-    tree — folded into symmetry, raised into a dome, breathing by depth.
+  <p class="dek">Every petal is an <b>untouched monotone drawing</b> of a tree —
+    Angelini's BFS or the Oikonomou&ndash;Symvonis 1-quadrant algorithm — folded
+    into symmetry, raised into a dome, breathing by depth.
     <b>Drag</b> to orbit · <b>scroll</b> to zoom.</p>
 </div>
 
 <div class="readout panel">
-  <div class="cap"><span class="dot"></span>Angelini · BFS-based</div>
+  <div class="cap"><span class="dot"></span><span id="rAlgo">Angelini · BFS-based</span></div>
   <div class="kv"><span>nodes</span><span id="rNodes">–</span></div>
   <div class="kv"><span>grid</span><span id="rGrid">–</span></div>
   <div class="kv"><span>tree</span><span id="rK">–</span></div>
@@ -123,6 +124,13 @@
       <button data-p="aurora" class="active">Aurora</button>
       <button data-p="solar">Solar</button>
       <button data-p="ion">Ion</button>
+    </div>
+  </div>
+  <div class="group">
+    <span class="lbl">Algorithm</span>
+    <div class="seg" id="algoSeg">
+      <button data-a="bfs" class="active">Angelini</button>
+      <button data-a="oik1q">Oik-Symv</button>
     </div>
   </div>
   <div class="group">
@@ -174,7 +182,7 @@
   </div>
 </div>
 
-<div class="credit">after Angelini et&nbsp;al. (BFS)<br><em>Monotone Drawings of Trees</em> · L. Evangelidakis</div>
+<div class="credit">Angelini et&nbsp;al. · Oikonomou &amp; Symvonis<br><em>Monotone Drawings of Trees</em> · L. Evangelidakis</div>
 
 <script>
 /* ---------------------------------------------------------------------------
@@ -260,6 +268,53 @@ function relabelDFS(tree) {
   }
   return { parent, children, n: tree.n };
 }
+/* Oikonomou & Symvonis one-quadrant algorithm — faithful port of
+   Oik_Symv_1Q.oik_symv_1q (root wedge [0, pi/2], subtree-proportional wedges,
+   primitive-vector selection), verified against the Python implementation. */
+function layoutOik1Q(tree) {
+  const { parent, children, n } = tree;
+  if (n <= 1) return [{ x: 0, y: 0 }];
+  const size = new Array(n).fill(1);
+  for (let i = n - 1; i >= 0; i--) for (const c of children[i]) size[i] += size[c];
+  const angle = new Array(n);
+  angle[0] = [0, Math.PI / 2];
+  (function assignAngles(u) {
+    const [th1, th2] = angle[u];
+    const Tu = size[u];
+    let a2 = th1;
+    for (const v of children[u]) {
+      const a1 = a2;
+      a2 = a1 + (th2 - th1) * size[v] / (Tu - 1);
+      angle[v] = [a1, a2];
+      assignAngles(v);
+    }
+  })(0);
+  const A05 = Math.atan(0.5), A2 = Math.atan(2), P4 = Math.PI / 4, P2 = Math.PI / 2;
+  const pos = new Array(n);
+  pos[0] = { x: 0, y: 0 };
+  (function assignCoords(u) {
+    if (u !== 0) {
+      const [th1, th2] = angle[u];
+      const th = th2 - th1;
+      let x = 0, y = 0;
+      // The (2,1) case is always overwritten by the chain below — preserved
+      // verbatim from the Python so behavior stays byte-identical.
+      if (th1 < A05 && A05 < th2 && th > A05) { x = 2; y = 1; }
+      if (th1 < P4 && th2 > P4) { x = 1; y = 1; }
+      else if (th1 < A2 && A2 < th2 && th > A05) { x = 1; y = 2; }
+      else {
+        const d = Math.ceil(1 / (th2 - th1));
+        if (th2 <= P4) { x = d; y = Math.floor(Math.tan(th1) * d + 1); }
+        else if (th2 > P2) { x = 1; y = d; }
+        else { x = Math.floor(Math.tan(P2 - th2) * d + 1); y = d; }
+      }
+      const p = parent[u];
+      pos[u] = { x: pos[p].x + x, y: pos[p].y + y };
+    }
+    for (const v of children[u]) assignCoords(v);
+  })(0);
+  return pos;
+}
 /* depth-fraction t in [0,1] -> [h,s,l] along a palette's stops */
 function rampColor(t, stops) {
   const x = Math.min(0.9999, Math.max(0, t)) * (stops.length - 1);
@@ -298,7 +353,9 @@ function rampColor(t, stops) {
       ? randomTree(opts.snowSize, opts.snowSeed)
       : completeKary(opts.k, opts.depth, 400);
     const tree = relabelDFS(raw);
-    const pos = layoutAngelini(tree, fuscRatios(tree.n));
+    const pos = opts.algo === "oik1q"
+      ? layoutOik1Q(tree)
+      : layoutAngelini(tree, fuscRatios(tree.n));
     const dep = new Array(tree.n).fill(0);
     for (let i = 1; i < tree.n; i++) dep[i] = dep[tree.parent[i]] + 1;
     let mx = 0, my = 0, maxR = 1e-9;
@@ -633,7 +690,8 @@ function rampColor(t, stops) {
   }, { passive: false });
 
   // ===== controls ===========================================================
-  let mode = "crystal", kVal = 3, depthVal = 4, petalVal = 6;
+  let mode = "crystal", algoName = "bfs", kVal = 3, depthVal = 4, petalVal = 6;
+  const ALGO_LABELS = { bfs: "Angelini · BFS-based", oik1q: "Oik-Symv · 1-Quadrant" };
   let snowSize = 90, snowSeed = (Date.now() % 100000) * 2654435761 >>> 0;
   const depthR = document.getElementById("depthR"), depthV = document.getElementById("depthV");
   const snowR = document.getElementById("snowR"), snowV = document.getElementById("snowV");
@@ -642,13 +700,14 @@ function rampColor(t, stops) {
   const speedR = document.getElementById("speedR"), speedV = document.getElementById("speedV");
 
   function refreshReadout() {
+    document.getElementById("rAlgo").textContent = ALGO_LABELS[algoName];
     document.getElementById("rNodes").textContent = scene.n;
     document.getElementById("rGrid").textContent = scene.grid;
     document.getElementById("rK").textContent = mode === "snow" ? "random" : "k = " + kVal;
     document.getElementById("rSec").textContent = 2 * scene.N;
   }
   function rebuild(regrow) {
-    scene = buildScene({ mode, k: kVal, depth: depthVal, petals: petalVal, snowSize, snowSeed });
+    scene = buildScene({ mode, algo: algoName, k: kVal, depth: depthVal, petals: petalVal, snowSize, snowSeed });
     resetMotes();
     sparks = [];
     if (regrow) birth = reduceMotion ? 1e9 : 0;
@@ -663,6 +722,12 @@ function rampColor(t, stops) {
     pal = PALETTES[b.dataset.p];
     buildStars(); needClear = true;
     if (reduceMotion) render(0);
+  });
+  document.getElementById("algoSeg").addEventListener("click", (e) => {
+    const b = e.target.closest("button"); if (!b) return;
+    for (const el of e.currentTarget.children) el.classList.toggle("active", el === b);
+    algoName = b.dataset.a;
+    rebuild(true);
   });
   document.getElementById("modeSeg").addEventListener("click", (e) => {
     const b = e.target.closest("button"); if (!b) return;
