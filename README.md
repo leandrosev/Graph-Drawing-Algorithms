@@ -33,7 +33,7 @@ python demo.py --paren "(()())(())" --algo hehe --save out.png
 |------|---------|
 | `--paren "(())..."` | build a specific tree from a balanced-parenthesis string |
 | `--random N` | build a random tree with `N` nodes |
-| `--algo bfs\|dfs\|hehe\|all` | which algorithm(s) to draw (default `all`) |
+| `--algo bfs\|dfs\|hehe\|balanced\|oik1q\|all` | which algorithm(s) to draw (default `all`) |
 | `--show` | display the drawing(s) in a window |
 | `--save FILE` | save to PNG (per-algorithm names when `--algo all`) |
 
@@ -43,10 +43,14 @@ python demo.py --paren "(()())(())" --algo hehe --save out.png
 import Tree_Operations as tops
 import Angelini as ang
 import He_He as hh
+import Oik_Symv_Balanced as osb
+import Oik_Symv_1Q as o1q
 
 g = tops.paren_to_nxgraph("(()())(())")   # -> networkx tree rooted at 'A'
 area, maxx, maxy, positions = ang.get_grid_area(g, algo="bfs")   # Angelini BFS-based
 area, maxx, maxy, positions = hh.path_draw_algorithm(g)          # He & He optimal
+area, maxx, maxy, positions = osb.new_balanced_tree(g)           # Oikonomou-Symvonis, 4-quadrant
+area, maxx, maxy, positions = o1q.oik_symv_1q(g)                 # Oikonomou-Symvonis, 1-quadrant
 ```
 
 Invalid input raises `TypeError` / `ValueError` (e.g. a non-tree graph, an unbalanced
@@ -62,6 +66,22 @@ pip install -r requirements-dev.txt
 ruff check .
 ruff format .
 ```
+
+## Interactive Visualizations
+
+Beyond the static images below, this repo includes self-contained, animated HTML pages
+that turn the algorithms' internal processes into something you can watch and play with.
+No server, no build step, no dependencies — each file is a single `.html` you can open
+directly in a browser.
+
+| File | What it shows |
+|------|----------------|
+| [`slope-bloom.html`](slope-bloom.html) | The Stern-Brocot fan of slopes lighting up, then a tree blooming onto them edge by edge — the number theory behind Angelini's BFS algorithm, made visible. |
+| [`catalan-unfolding.html`](catalan-unfolding.html) | A balanced-parenthesis string read left to right while a pen draws the tree and its Dyck-path "mountain range" in sync — the tree ↔ parenthesis bijection (see [Tree Generation](#tree-generation) below), animated. |
+| [`living-mandala.html`](living-mandala.html) | Complete trees folded into kaleidoscopic, rotatable 3D mandalas, drawn by the real Angelini or Oikonomou-Symvonis algorithms — switchable, with a "Snowflake" mode that generates an infinite stream of unique mandalas from random trees. |
+
+Every drawing on the page is the *actual* algorithm output (JavaScript ports verified
+node-for-node against the Python implementations) — nothing is faked for effect.
 
 # 
 **Abstract**
