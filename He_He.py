@@ -27,13 +27,12 @@ from __future__ import annotations
 
 import math
 from string import ascii_uppercase
-from typing import Dict, List, Tuple
 
-import numpy as np
-import networkx as nx
 import matplotlib.pyplot as plt
+import networkx as nx
+import numpy as np
 
-Vector = Tuple[int, int]
+Vector = tuple[int, int]
 
 
 # ---------------------------------------------------------------------------
@@ -50,9 +49,7 @@ def _validate_tree(tree: object, root: object) -> None:
         If *tree* is empty, is not a tree, or does not contain *root*.
     """
     if not isinstance(tree, nx.Graph):
-        raise TypeError(
-            f"tree must be a networkx.Graph, got {type(tree).__name__!r}"
-        )
+        raise TypeError(f"tree must be a networkx.Graph, got {type(tree).__name__!r}")
     if tree.is_directed():
         raise TypeError("tree must be undirected; got a directed graph")
     if tree.is_multigraph():
@@ -60,9 +57,7 @@ def _validate_tree(tree: object, root: object) -> None:
     if tree.number_of_nodes() == 0:
         raise ValueError("tree is empty; at least the root node is required")
     if not nx.is_tree(tree):
-        raise ValueError(
-            "input graph is not a tree (a tree must be connected and acyclic)"
-        )
+        raise ValueError("input graph is not a tree (a tree must be connected and acyclic)")
     if root not in tree:
         raise ValueError(f"root {root!r} is not a node of the tree")
 
@@ -75,7 +70,7 @@ def invert(tup: Vector) -> Vector:
     return (tup[1], tup[0])
 
 
-def FareySeq(n: int, descending: bool = False) -> List[Vector]:
+def FareySeq(n: int, descending: bool = False) -> list[Vector]:
     """Return the ``n``-th Farey sequence closed under coordinate inversion.
 
     Each fraction ``a/b`` is represented as the tuple ``(a, b)``; the result is
@@ -101,7 +96,7 @@ def FareySeq(n: int, descending: bool = False) -> List[Vector]:
     return sorted(result, key=lambda x: x[1] / float(x[0]))
 
 
-def FareySeq2(n: int, descending: bool = False) -> List[Vector]:
+def FareySeq2(n: int, descending: bool = False) -> list[Vector]:
     """Like :func:`FareySeq`, but bracketed by the axis vectors.
 
     The vertical vector ``(1, 0)`` is prepended and the horizontal vector
@@ -128,16 +123,16 @@ def FareySeq2(n: int, descending: bool = False) -> List[Vector]:
 # ---------------------------------------------------------------------------
 # Path decompositions
 # ---------------------------------------------------------------------------
-def _adjacency(tree: nx.Graph) -> Dict[object, List]:
+def _adjacency(tree: nx.Graph) -> dict[object, list]:
     """Return ``node -> [children...]`` in the tree's node ordering."""
-    graph: Dict[object, List] = {}
+    graph: dict[object, list] = {}
     for line in nx.generate_adjlist(tree):
         parts = line.split(" ")
         graph[parts[0]] = parts[1:]
     return graph
 
 
-def PathDecomposition(tree: nx.Graph, root: object = "A") -> List[List]:
+def PathDecomposition(tree: nx.Graph, root: object = "A") -> list[list]:
     """Decompose *tree* into leaf-to-junction paths (first leaf reaches root)."""
     graph = _adjacency(tree)
     leafs = [v for v in graph if graph[v] == []]
@@ -159,7 +154,7 @@ def PathDecomposition(tree: nx.Graph, root: object = "A") -> List[List]:
     return bset
 
 
-def LDPD(tree: nx.Graph, root: object = "A") -> List[List]:
+def LDPD(tree: nx.Graph, root: object = "A") -> list[list]:
     """Length-Decreasing Path Decomposition of *tree*.
 
     Returns a list of paths, ordered by non-increasing length, that partition
@@ -197,7 +192,7 @@ def LDPD(tree: nx.Graph, root: object = "A") -> List[List]:
     return paths
 
 
-def c_partition(tree: nx.Graph, ldpd: List[List], c: int) -> List[List[List]]:
+def c_partition(tree: nx.Graph, ldpd: list[list], c: int) -> list[list[list]]:
     """Partition an LDPD into ``ceil(log_c(n))`` levels by path length."""
     n = tree.number_of_nodes()
     K = math.ceil(math.log(n, c))
@@ -207,16 +202,13 @@ def c_partition(tree: nx.Graph, ldpd: List[List], c: int) -> List[List[List]]:
     D.append(level0)
 
     for j in range(2, K + 1):
-        level = [
-            b for b in ldpd
-            if (n - 1) / (c ** j) <= len(b) - 1 < (n - 1) / (c ** (j - 1))
-        ]
+        level = [b for b in ldpd if (n - 1) / (c**j) <= len(b) - 1 < (n - 1) / (c ** (j - 1))]
         D.append(level)
 
     return D
 
 
-def construct_prim_vectors(f: int, d: int, n: int) -> List:
+def construct_prim_vectors(f: int, d: int, n: int) -> list:
     """Build the primitive slope-vector set and its per-level breakdown.
 
     Returns ``[union_of_R, All_Rs]`` where ``union_of_R`` is the full sorted
@@ -228,17 +220,17 @@ def construct_prim_vectors(f: int, d: int, n: int) -> List:
     def find_elements_between(source, start, end, howmany):
         begin = source.index(start)
         end = source.index(end)
-        between = source[begin + 1:end]
+        between = source[begin + 1 : end]
         return between[0:howmany]
 
     P = FareySeq(d)
 
     P1 = P.index((1, 1))
     S1 = P[0:f]
-    S2 = P[P1 + 1:P1 + f + 1]
-    R1 = [x for x in S1] + [(1, 1)] + [y for y in S2]
+    S2 = P[P1 + 1 : P1 + f + 1]
+    R1 = list(S1) + [(1, 1)] + list(S2)
 
-    Pd2 = FareySeq2(d ** 2)
+    Pd2 = FareySeq2(d**2)
     R2 = []
     newR1 = [(1, 0)] + R1 + [(0, 1)]
 
@@ -255,7 +247,7 @@ def construct_prim_vectors(f: int, d: int, n: int) -> List:
             union_of_R.append((0, 1))
 
         R = []
-        jsource = FareySeq2(d ** j)
+        jsource = FareySeq2(d**j)
         for first, second in zip(union_of_R, union_of_R[1:]):
             R += find_elements_between(jsource, first, second, f)
 
@@ -268,7 +260,7 @@ def construct_prim_vectors(f: int, d: int, n: int) -> List:
     return [union_of_R, All_Rs]
 
 
-def getleafs(tree: Dict[object, List], start: object = None) -> List:
+def getleafs(tree: dict[object, list], start: object = None) -> list:
     """Return the leaves (childless nodes) of an adjacency-list ``dict``."""
     return [node for node in tree if tree[node] == []]
 
@@ -278,7 +270,7 @@ def getleafs(tree: Dict[object, List], start: object = None) -> List:
 # ---------------------------------------------------------------------------
 def _draw_hehe(
     tree: nx.Graph,
-    pos: Dict[object, Vector],
+    pos: dict[object, Vector],
     maxx: int,
     maxy: int,
     n: int,
@@ -294,8 +286,13 @@ def _draw_hehe(
     fig = plt.figure(figsize=(7, 5))
     try:
         nx.draw_networkx(
-            tree, pos=pos, with_labels=w_labels, node_size=n_size,
-            arrows=False, node_color=n_color, font_color=l_color,
+            tree,
+            pos=pos,
+            with_labels=w_labels,
+            node_size=n_size,
+            arrows=False,
+            node_color=n_color,
+            font_color=l_color,
         )
         plt.grid(color="gray")
         ax = plt.gca()
@@ -303,10 +300,7 @@ def _draw_hehe(
         ax.set_xlim([-1, maxx + 1])
         ax.set_xticklabels([])
         ax.set_yticklabels([])
-        plt.title(
-            f"He & He Optimal Algorithm\n\n"
-            f"Grid Size: {maxx + 1} x {maxy + 1} ({n} nodes)"
-        )
+        plt.title(f"He & He Optimal Algorithm\n\nGrid Size: {maxx + 1} x {maxy + 1} ({n} nodes)")
         ax.set_aspect(1)
         plt.xticks(np.arange(0, maxx + 1, 1))
         plt.yticks(np.arange(0, maxy + 1, 1))
@@ -315,9 +309,7 @@ def _draw_hehe(
             try:
                 plt.savefig(filename, bbox_inches="tight")
             except OSError as exc:
-                raise OSError(
-                    f"could not save drawing to {filename!r}: {exc}"
-                ) from exc
+                raise OSError(f"could not save drawing to {filename!r}: {exc}") from exc
         if display:
             plt.show()
     finally:
@@ -339,7 +331,7 @@ def PathDrawAlgorithm(
     n_size: float = 25,
     n_color: str = "black",
     l_color: str = "black",
-) -> List:
+) -> list:
     """Compute the He & He monotone drawing of *g* and return its grid metrics.
 
     Parameters
@@ -417,8 +409,18 @@ def PathDrawAlgorithm(
 
     if display or save:
         _draw_hehe(
-            tree, gridpos, maxx, maxy, n,
-            w_labels, n_size, n_color, l_color, display, save, filename,
+            tree,
+            gridpos,
+            maxx,
+            maxy,
+            n,
+            w_labels,
+            n_size,
+            n_color,
+            l_color,
+            display,
+            save,
+            filename,
         )
 
     return [graph_area, maxx, maxy, gridpos]
@@ -426,11 +428,11 @@ def PathDrawAlgorithm(
 
 def _compute_positions(
     tree: nx.Graph,
-    graph: Dict[object, List],
+    graph: dict[object, list],
     root: object,
     f: int,
     d: int,
-) -> Dict[object, Vector]:
+) -> dict[object, Vector]:
     """Assign each node an ``(x, y)`` grid position via the He & He method."""
     leafs = getleafs(graph, root)
     t = len(leafs)
@@ -439,9 +441,7 @@ def _compute_positions(
     union_of_R, all_Rs = construct_prim_vectors(f, d, n)
 
     # Order leaves/paths by the integer rank of their leaf label.
-    letters = list(ascii_uppercase) + [
-        c1 + c2 for c1 in ascii_uppercase for c2 in ascii_uppercase
-    ]
+    letters = list(ascii_uppercase) + [c1 + c2 for c1 in ascii_uppercase for c2 in ascii_uppercase]
     for_relabel = dict(zip(letters, range(n + 1)))
 
     # NOTE: B and D deliberately share the same path-list objects; truncating
@@ -469,8 +469,8 @@ def _compute_positions(
     # Assign to each path the next unused vector whose level fits the path.
     assigned_edges = {}
     last_index = 0
-    for l in range(t):
-        bl = B[l]
+    for li in range(t):
+        bl = B[li]
         bl_level = b_levels[tuple(bl)]
         for vector in union_of_R:
             if R_levels[vector] <= bl_level and union_of_R.index(vector) > last_index:
@@ -485,7 +485,7 @@ def _compute_positions(
             abs_coords[node] = assigned_edges[tuple(path)]
 
     # Accumulate vectors from the root to obtain absolute coordinates.
-    grid_points: Dict[object, Vector] = {root: (0, 0)}
+    grid_points: dict[object, Vector] = {root: (0, 0)}
     for node in graph:
         for child in graph[node]:
             if child not in grid_points:

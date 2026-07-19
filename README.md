@@ -4,6 +4,65 @@ This repository contains several graph drawing tools i made while working on my 
 
       I will upload several parts of the project's code. For more details contact me at leandrosevag@hotmail.com
 
+## Getting Started
+
+Requires **Python 3.10+**. Install the dependencies into a virtual environment:
+
+```bash
+python -m venv .venv
+# Windows:        .venv\Scripts\activate
+# Linux / macOS:  source .venv/bin/activate
+pip install -r requirements.txt
+```
+
+### Usage
+
+The quickest way to see the algorithms is the `demo.py` command-line runner. Give it a
+tree — either a balanced-parenthesis string (`--paren`) or a random one (`--random N`) —
+and pick which algorithm(s) to draw:
+
+```bash
+# Random 8-node tree, run every algorithm, show the plots
+python demo.py --random 8 --algo all --show
+
+# A specific tree, save the He & He drawing to a PNG
+python demo.py --paren "(()())(())" --algo hehe --save out.png
+```
+
+| Flag | Meaning |
+|------|---------|
+| `--paren "(())..."` | build a specific tree from a balanced-parenthesis string |
+| `--random N` | build a random tree with `N` nodes |
+| `--algo bfs\|dfs\|hehe\|all` | which algorithm(s) to draw (default `all`) |
+| `--show` | display the drawing(s) in a window |
+| `--save FILE` | save to PNG (per-algorithm names when `--algo all`) |
+
+### As a library
+
+```python
+import Tree_Operations as tops
+import Angelini as ang
+import He_He as hh
+
+g = tops.paren_to_nxgraph("(()())(())")   # -> networkx tree rooted at 'A'
+area, maxx, maxy, positions = ang.getGridArea(g, algo="bfs")   # Angelini BFS-based
+area, maxx, maxy, positions = hh.PathDrawAlgorithm(g)          # He & He optimal
+```
+
+Invalid input raises `TypeError` / `ValueError` (e.g. a non-tree graph, an unbalanced
+parenthesis string, or an unknown algorithm) rather than failing silently.
+
+### Development
+
+Linting and formatting use [ruff](https://docs.astral.sh/ruff/) (configured in
+`pyproject.toml`):
+
+```bash
+pip install -r requirements-dev.txt
+ruff check .
+ruff format .
+```
+
 # 
 **Abstract**
 

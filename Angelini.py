@@ -31,20 +31,18 @@ rather than producing a silently wrong drawing.
 
 from __future__ import annotations
 
-from typing import Dict, List, Tuple
-
-import numpy as np
-import networkx as nx
 import matplotlib.pyplot as plt
+import networkx as nx
+import numpy as np
 
 # Stern-Brocot ratios can involve division by (temporarily) zero denominators;
 # the results are never used, so silence the warnings rather than pollute output.
 np.seterr(divide="ignore", invalid="ignore")
 
-VALID_ALGORITHMS: Tuple[str, ...] = ("bfs", "dfs")
+VALID_ALGORITHMS: tuple[str, ...] = ("bfs", "dfs")
 
 # A node's coordinate is a (y, x) pair; positions handed to matplotlib are (x, y).
-Coord = Tuple[float, float]
+Coord = tuple[float, float]
 
 
 # ---------------------------------------------------------------------------
@@ -61,9 +59,7 @@ def _validate_tree(tree: object, root_node: object) -> None:
         If *tree* is empty, is not a tree, or does not contain *root_node*.
     """
     if not isinstance(tree, nx.Graph):
-        raise TypeError(
-            f"tree must be a networkx.Graph, got {type(tree).__name__!r}"
-        )
+        raise TypeError(f"tree must be a networkx.Graph, got {type(tree).__name__!r}")
     if tree.is_directed():
         raise TypeError("tree must be undirected; got a directed graph")
     if tree.is_multigraph():
@@ -71,9 +67,7 @@ def _validate_tree(tree: object, root_node: object) -> None:
     if tree.number_of_nodes() == 0:
         raise ValueError("tree is empty; at least the root node is required")
     if not nx.is_tree(tree):
-        raise ValueError(
-            "input graph is not a tree (a tree must be connected and acyclic)"
-        )
+        raise ValueError("input graph is not a tree (a tree must be connected and acyclic)")
     if root_node not in tree:
         raise ValueError(f"root_node {root_node!r} is not a node of the tree")
 
@@ -81,7 +75,7 @@ def _validate_tree(tree: object, root_node: object) -> None:
 # ---------------------------------------------------------------------------
 # Slope generation
 # ---------------------------------------------------------------------------
-def _slope_map(n: int, algo: str) -> Dict[float, Coord]:
+def _slope_map(n: int, algo: str) -> dict[float, Coord]:
     """Return ``ratio -> (y, x)`` for the ``n - 1`` edge slopes, sorted by ratio.
 
     For ``"bfs"`` the numerators/denominators are consecutive terms of the
@@ -95,7 +89,7 @@ def _slope_map(n: int, algo: str) -> Dict[float, Coord]:
             v[2 * i] = v[i]
             v[2 * i + 1] = v[i] + v[i + 1]
         x = v[1:n]
-        y = v[2:n + 1]
+        y = v[2 : n + 1]
     else:  # "dfs"; algo is already validated by the caller
         y = np.arange(1, n, dtype=float)
         x = np.ones(n - 1)
@@ -111,7 +105,7 @@ def _slope_map(n: int, algo: str) -> Dict[float, Coord]:
 # ---------------------------------------------------------------------------
 def _draw(
     g: nx.Graph,
-    pos: Dict[object, Coord],
+    pos: dict[object, Coord],
     algo: str,
     maxx: int,
     maxy: int,
@@ -136,8 +130,13 @@ def _draw(
     fig = plt.figure(figsize=(7, 7))
     try:
         nx.draw_networkx(
-            g, pos=pos, with_labels=w_labels, node_size=n_size,
-            arrows=False, node_color=n_color, font_color=l_color,
+            g,
+            pos=pos,
+            with_labels=w_labels,
+            node_size=n_size,
+            arrows=False,
+            node_color=n_color,
+            font_color=l_color,
         )
         plt.grid(color="gray")
         plt.title(f"{titles[algo]}\n\nGrid Size: {maxx} x {maxy} ({n} nodes)")
@@ -154,9 +153,7 @@ def _draw(
             try:
                 plt.savefig(filename, bbox_inches="tight")
             except OSError as exc:
-                raise OSError(
-                    f"could not save drawing to {filename!r}: {exc}"
-                ) from exc
+                raise OSError(f"could not save drawing to {filename!r}: {exc}") from exc
         if display:
             plt.show()
     finally:
@@ -172,13 +169,13 @@ def getGridArea(
     display: bool = False,
     save: bool = False,
     algo: str = "bfs",
-    view: object = None,          # kept for backward compatibility; unused
+    view: object = None,  # kept for backward compatibility; unused
     filename: str = "tree1.png",
     w_labels: bool = False,
     n_size: float = 25,
     n_color: str = "black",
     l_color: str = "black",
-) -> List:
+) -> list:
     """Compute a monotone drawing of *tree* and return its grid metrics.
 
     Parameters
@@ -229,7 +226,7 @@ def getGridArea(
     n = g.number_of_nodes()
 
     # Adjacency list as node -> [children...] in the tree's (CCW) node ordering.
-    graph: Dict[object, List] = {}
+    graph: dict[object, list] = {}
     for line in nx.generate_adjlist(g):
         parts = line.split(" ")
         graph[parts[0]] = parts[1:]
@@ -261,8 +258,19 @@ def getGridArea(
 
     if display or save:
         _draw(
-            g, gridpos, algo, maxx, maxy, n,
-            w_labels, n_size, n_color, l_color, display, save, filename,
+            g,
+            gridpos,
+            algo,
+            maxx,
+            maxy,
+            n,
+            w_labels,
+            n_size,
+            n_color,
+            l_color,
+            display,
+            save,
+            filename,
         )
 
     return [graph_area, maxx, maxy, gridpos]
@@ -270,11 +278,11 @@ def getGridArea(
 
 def _compute_positions(
     g: nx.Graph,
-    graph: Dict[object, List],
+    graph: dict[object, list],
     n: int,
     algo: str,
     root_node: object,
-) -> Dict[object, Tuple[int, int]]:
+) -> dict[object, tuple[int, int]]:
     """Assign each node an integer ``(x, y)`` grid position.
 
     This is the core of the Angelini et al. algorithm: decompose the tree into
@@ -282,7 +290,7 @@ def _compute_positions(
     turn slopes into per-node offsets, and accumulate offsets from the root.
     """
     # Map each node to the list of its child subtrees (each a list of nodes).
-    subtree_map: Dict[object, List] = {}
+    subtree_map: dict[object, list] = {}
     for k in list(g.nodes()):
         children = graph[k]
         if not children:
@@ -305,9 +313,9 @@ def _compute_positions(
     #   subtrees_seq: tuple(subtree nodes) -> slope run
     #   coordmap:     node -> (y, x) offset relative to its parent
     #   T_u:          node -> slope run available to its own subtree
-    subtrees_seq: Dict[Tuple, List] = {}
-    coordmap: Dict[object, Coord] = {root_node: (0, 0)}
-    T_u: Dict[object, List] = {root_node: list(sorted_ratios)}
+    subtrees_seq: dict[tuple, list] = {}
+    coordmap: dict[object, Coord] = {root_node: (0, 0)}
+    T_u: dict[object, list] = {root_node: list(sorted_ratios)}
     for node in graph:
         children = graph[node]
         if not children:
@@ -316,9 +324,9 @@ def _compute_positions(
         for subtree in subtree_map[node]:
             lengths.append(len(subtree))
         for j, subtree in enumerate(subtree_map[node]):
-            start = 1 + sum(lengths[:j + 1])
-            end = sum(lengths[:j + 2])
-            subtrees_seq[tuple(subtree)] = T_u[node][start - 1:end]
+            start = 1 + sum(lengths[: j + 1])
+            end = sum(lengths[: j + 2])
+            subtrees_seq[tuple(subtree)] = T_u[node][start - 1 : end]
         for child in children:
             for subtree in subtree_map[node]:
                 if child in subtree:
@@ -328,7 +336,7 @@ def _compute_positions(
                     break
 
     # Accumulate offsets from the root to get absolute (y, x) positions.
-    grid_map: Dict[object, Coord] = {root_node: (0, 0)}
+    grid_map: dict[object, Coord] = {root_node: (0, 0)}
     for parent in graph:
         py, px = grid_map[parent]
         for child in graph[parent]:
@@ -337,7 +345,4 @@ def _compute_positions(
                 grid_map[child] = (cy + py, cx + px)
 
     # Expose positions to matplotlib as integer (x, y) tuples.
-    return {
-        node: (int(grid_map[node][1]), int(grid_map[node][0]))
-        for node in g.nodes()
-    }
+    return {node: (int(grid_map[node][1]), int(grid_map[node][0])) for node in g.nodes()}

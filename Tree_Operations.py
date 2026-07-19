@@ -26,15 +26,12 @@ from __future__ import annotations
 import random
 from itertools import permutations
 from string import ascii_uppercase
-from typing import List
 
-import networkx as nx
 import matplotlib.pyplot as plt
+import networkx as nx
 
 # Available node labels: A..Z then AA..ZZ (702 total). 'A' is always the root.
-_LABELS = list(ascii_uppercase) + [
-    c1 + c2 for c1 in ascii_uppercase for c2 in ascii_uppercase
-]
+_LABELS = list(ascii_uppercase) + [c1 + c2 for c1 in ascii_uppercase for c2 in ascii_uppercase]
 _MAX_NODES = len(_LABELS)
 
 
@@ -69,7 +66,7 @@ def isvalid(parenth: str) -> bool:
     return right == left
 
 
-def genParenLazy(n: int) -> List[str]:
+def genParenLazy(n: int) -> list[str]:
     """Enumerate every balanced string with *n* pairs of parentheses (brute force).
 
     *n* is the number of pairs, i.e. the number of non-root nodes; the result
@@ -89,7 +86,7 @@ def genParenLazy(n: int) -> List[str]:
     return [s for s in perms if isvalid(s)]
 
 
-def genParenFast(n: int) -> List[str]:
+def genParenFast(n: int) -> list[str]:
     """Enumerate every balanced string describing an *n*-node rooted tree.
 
     *n* is the total number of nodes (including the root). Builds each string
@@ -109,7 +106,7 @@ def genParenFast(n: int) -> List[str]:
     if pairs == 0:
         return [""]  # single-node (root-only) tree
 
-    res: List[str] = []
+    res: list[str] = []
 
     def process(string: str = "", opened: int = 0, closed: int = 0) -> None:
         if len(string) == 2 * pairs:
@@ -161,16 +158,14 @@ def paren_to_nxgraph(parenthesis: str) -> nx.Graph:
         702-node label scheme.
     """
     if not isinstance(parenthesis, str):
-        raise TypeError(
-            f"expected a string, got {type(parenthesis).__name__!r}"
-        )
+        raise TypeError(f"expected a string, got {type(parenthesis).__name__!r}")
     if not isvalid(parenthesis):
         raise ValueError(f"not a valid balanced-parenthesis string: {parenthesis!r}")
 
     labels = _LABELS.copy()
     g = nx.Graph()
     g.add_node("A")
-    parent = labels.pop(0)          # 'A'
+    parent = labels.pop(0)  # 'A'
     child = "A"
     index = 0
     nodes = ["A"]
@@ -181,8 +176,7 @@ def paren_to_nxgraph(parenthesis: str) -> nx.Graph:
         if paren == "(":
             if not labels:
                 raise ValueError(
-                    f"tree too large: the label scheme supports at most "
-                    f"{_MAX_NODES} nodes"
+                    f"tree too large: the label scheme supports at most {_MAX_NODES} nodes"
                 )
             index += 1
             child = labels.pop(0)

@@ -1,0 +1,19 @@
+# Tooling configuration for the monotone tree-drawing algorithms.
+# Lint & format with: `ruff check .` and `ruff format .`
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "C4", "SIM"]
+# pep8-naming (N) is intentionally NOT enabled: the public API keeps its
+# original names (getGridArea, PathDrawAlgorithm, FareySeq, LDPD, genParenFast,
+# ...) and internal variables mirror the notation of the source papers
+# (R, D, K, S1/S2, T_u, ...). Renaming them would diverge from the references.
+ignore = [
+    "B905",  # zip() without strict=: several zips have deliberately unequal lengths
+]
+
+[tool.ruff.format]
+quote-style = "double"
