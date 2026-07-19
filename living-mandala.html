@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Living Mandala</title>
-<meta name="description" content="A complete k-ary tree drawn by the real Angelini BFS monotone-drawing algorithm, folded into kaleidoscopic symmetry and set breathing in 3D space.">
+<meta name="description" content="A tree drawn by the real Angelini BFS monotone-drawing algorithm, folded into kaleidoscopic symmetry and set breathing in 3D space.">
 <meta name="author" content="Leandros Evangelidakis">
 <meta name="theme-color" content="#05070f">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='92'>%F0%9F%AA%B7</text></svg>">
@@ -62,10 +62,11 @@
   .readout .kv span:first-child { color: var(--muted); }
 
   .controls { position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%);
-    display: flex; align-items: center; gap: 16px; padding: 12px 16px; flex-wrap: wrap;
+    display: flex; align-items: center; gap: 14px; padding: 12px 16px; flex-wrap: wrap;
     justify-content: center; max-width: calc(100vw - 32px); }
   .group { display: flex; align-items: center; gap: 8px; }
-  .group + .group { border-left: 1px solid var(--hair); padding-left: 16px; }
+  .group + .group { border-left: 1px solid var(--hair); padding-left: 14px; }
+  .group.hidden { display: none; }
   .lbl { font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
   .seg { display: flex; gap: 4px; }
   button { font-family: var(--sans); font-size: 12.5px; color: var(--ink); background: transparent;
@@ -73,17 +74,18 @@
     transition: background 0.15s, border-color 0.15s, color 0.15s; }
   button:hover { border-color: var(--ink); }
   button.active { background: var(--seed); border-color: var(--seed); color: #0a0e1c; }
-  input[type="range"] { -webkit-appearance: none; appearance: none; width: 86px; height: 4px;
+  .icon-btn { min-width: 36px; }
+  input[type="range"] { -webkit-appearance: none; appearance: none; width: 78px; height: 4px;
     border-radius: 3px; background: var(--hair); outline: none; cursor: pointer; }
   input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 14px; height: 14px;
     border-radius: 50%; background: var(--ink); border: 2px solid #05070f; }
   input[type="range"]::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%;
     background: var(--ink); border: 2px solid #05070f; }
-  .val { font-family: var(--mono); font-size: 11px; color: var(--muted); min-width: 2.2ch;
+  .val { font-family: var(--mono); font-size: 11px; color: var(--muted); min-width: 2.4ch;
     text-align: right; font-variant-numeric: tabular-nums; }
   :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 
-  .credit { position: fixed; right: 24px; bottom: 84px; font-size: 11px; color: var(--muted);
+  .credit { position: fixed; right: 24px; bottom: 120px; font-size: 11px; color: var(--muted);
     text-align: right; font-family: var(--mono); pointer-events: none; }
   .credit em { font-family: var(--serif); font-style: italic; color: var(--ink); }
 
@@ -99,10 +101,10 @@
 <div class="vignette"></div>
 
 <div class="masthead">
-  <div class="eyebrow">Complete k-ary trees · the real drawing, kaleidoscoped</div>
+  <div class="eyebrow">Real monotone drawings, kaleidoscoped</div>
   <h1>Living Mandala</h1>
   <p class="dek">Every petal is the <b>untouched Angelini BFS monotone drawing</b> of a
-    complete tree — folded into symmetry, tilted into space, breathing by depth.
+    tree — folded into symmetry, raised into a dome, breathing by depth.
     <b>Drag</b> to orbit · <b>scroll</b> to zoom.</p>
 </div>
 
@@ -110,7 +112,7 @@
   <div class="cap"><span class="dot"></span>Angelini · BFS-based</div>
   <div class="kv"><span>nodes</span><span id="rNodes">–</span></div>
   <div class="kv"><span>grid</span><span id="rGrid">–</span></div>
-  <div class="kv"><span>branching</span><span id="rK">–</span></div>
+  <div class="kv"><span>tree</span><span id="rK">–</span></div>
   <div class="kv"><span>mirror sectors</span><span id="rSec">–</span></div>
 </div>
 
@@ -124,6 +126,13 @@
     </div>
   </div>
   <div class="group">
+    <span class="lbl">Mode</span>
+    <div class="seg" id="modeSeg">
+      <button data-m="crystal" class="active">Crystal</button>
+      <button data-m="snow">Snowflake</button>
+    </div>
+  </div>
+  <div class="group" id="kGroup">
     <span class="lbl">k</span>
     <div class="seg" id="kSeg">
       <button data-k="2">2</button>
@@ -131,10 +140,16 @@
       <button data-k="4">4</button>
     </div>
   </div>
-  <div class="group">
+  <div class="group" id="depthGroup">
     <span class="lbl">Depth</span>
     <input type="range" id="depthR" min="2" max="4" step="1" value="4" aria-label="tree depth">
     <span class="val" id="depthV">4</span>
+  </div>
+  <div class="group hidden" id="snowGroup">
+    <span class="lbl">Size</span>
+    <input type="range" id="snowR" min="40" max="160" step="10" value="90" aria-label="snowflake size">
+    <span class="val" id="snowV">90</span>
+    <button id="newSnowBtn">New ❄</button>
   </div>
   <div class="group">
     <span class="lbl">Petals</span>
@@ -142,9 +157,20 @@
     <span class="val" id="petalV">6</span>
   </div>
   <div class="group">
+    <span class="lbl">Dome</span>
+    <input type="range" id="domeR" min="0" max="1" step="0.05" value="0.45" aria-label="dome height">
+    <span class="val" id="domeV">0.45</span>
+  </div>
+  <div class="group">
     <span class="lbl">Speed</span>
     <input type="range" id="speedR" min="0" max="2.5" step="0.1" value="1" aria-label="animation speed">
     <span class="val" id="speedV">1.0</span>
+  </div>
+  <div class="group">
+    <button class="icon-btn" id="replayBtn" title="Replay genesis bloom">↻</button>
+    <button id="trailsBtn" title="Light trails">Trails</button>
+    <button id="driftBtn" title="Cinematic camera drift">Drift</button>
+    <button id="pngBtn" title="Save the current frame as PNG">PNG</button>
   </div>
 </div>
 
@@ -201,6 +227,20 @@ function completeKary(k, depth, cap) {
     fr = nx;
     if (parent.length >= cap) break;
   }
+  return treeFromParents(parent);
+}
+function randomTree(n, seed) {
+  let s = seed >>> 0;
+  const rnd = () => (s = (s * 1664525 + 1013904223) >>> 0) / 4294967296;
+  const parent = [-1];
+  for (let i = 1; i < n; i++) {
+    // bias toward recent nodes for organic, varied silhouettes
+    const j = Math.max(0, i - 1 - Math.floor(Math.pow(rnd(), 1.7) * i));
+    parent.push(j);
+  }
+  return treeFromParents(parent);
+}
+function treeFromParents(parent) {
   const n = parent.length;
   const children = Array.from({ length: n }, () => []);
   for (let i = 1; i < n; i++) children[parent[i]].push(i);
@@ -246,13 +286,18 @@ function rampColor(t, stops) {
   let pal = PALETTES.aurora;
 
   const DEPTH_CAP = { 2: 7, 3: 4, 4: 3 };
-  const SUB = 4;           // samples per edge (curved petal filaments)
-  const F = 3.4;           // perspective focal length (r is normalized to ~1)
+  const SUB = 4;             // samples per edge (curved petal filaments)
+  const F = 3.4;             // perspective focal length (r is normalized to ~1)
+  const RING_DELAY = 0.45;   // genesis: seconds between depth rings
+  const RING_GROW = 0.6;     // genesis: seconds for one ring's edges to extend
 
   // ===== scene ==============================================================
   let scene = null;
-  function buildScene(k, depth, petals) {
-    const tree = relabelDFS(completeKary(k, depth, 400));
+  function buildScene(opts) {
+    const raw = opts.mode === "snow"
+      ? randomTree(opts.snowSize, opts.snowSeed)
+      : completeKary(opts.k, opts.depth, 400);
+    const tree = relabelDFS(raw);
     const pos = layoutAngelini(tree, fuscRatios(tree.n));
     const dep = new Array(tree.n).fill(0);
     for (let i = 1; i < tree.n; i++) dep[i] = dep[tree.parent[i]] + 1;
@@ -269,22 +314,29 @@ function rampColor(t, stops) {
       for (let j = 0; j <= SUB; j++) {
         const t = j / SUB;
         const x = a.x + (b.x - a.x) * t, y = a.y + (b.y - a.y) * t;
+        const dv = dep[tree.parent[i]] + (dep[i] - dep[tree.parent[i]]) * t;
         s.push({
           r: Math.hypot(x, y) / maxR,
-          phi: Math.atan2(y, x),          // 0..pi/2 (first quadrant)
-          pc: 0,                          // compressed angle, set below
-          dv: dep[tree.parent[i]] + (dep[i] - dep[tree.parent[i]]) * t,
+          phi: Math.atan2(y, x),                    // 0..pi/2 (first quadrant)
+          pc: 0,                                    // compressed angle, set below
+          dv,
+          hv: Math.pow(1 - dv / maxD, 1.4) * 0.6,   // dome lift profile
         });
       }
-      edges.push({ d: dep[i], child: i, s });
+      edges.push({ d: dep[i], child: i, bt: (dep[i] - 1) * RING_DELAY, s });
     }
-    const sc = { tree, edges, maxD, n: tree.n, grid: (mx + 1) + "×" + (my + 1), N: petals };
-    setPetals(sc, petals);
+    const sc = {
+      tree, edges, maxD, n: tree.n,
+      grid: (mx + 1) + "×" + (my + 1),
+      N: opts.petals,
+      bloomEnd: (maxD - 1) * RING_DELAY + RING_GROW,
+    };
+    setPetals(sc, opts.petals);
     return sc;
   }
   function setPetals(sc, N) {
     sc.N = N;
-    const ratio = 2 / N;                  // [0, pi/2] -> [0, pi/N]
+    const ratio = 2 / N;                            // [0, pi/2] -> [0, pi/N]
     for (const e of sc.edges) for (const smp of e.s) smp.pc = smp.phi * ratio;
   }
 
@@ -292,22 +344,22 @@ function rampColor(t, stops) {
   const canvas = document.getElementById("stage");
   const ctx = canvas.getContext("2d");
   let W = 0, H = 0, dpr = 1, cx = 0, cy = 0, R = 0;
-  let stars = null;
+  let stars = null, needClear = true;
 
   function fit() {
     dpr = Math.min(2, window.devicePixelRatio || 1);
     W = canvas.clientWidth; H = canvas.clientHeight;
     canvas.width = Math.round(W * dpr); canvas.height = Math.round(H * dpr);
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    cx = W / 2; cy = H * 0.52;
-    R = Math.min(W, H) * 0.37;
+    cx = W / 2; cy = H * 0.53;
+    R = Math.min(W, H) * 0.36;
     buildStars();
+    needClear = true;
   }
   function buildStars() {
     stars = document.createElement("canvas");
     stars.width = W + 60; stars.height = H + 60;
     const g = stars.getContext("2d");
-    // nebula washes tinted to the palette
     for (let i = 0; i < 3; i++) {
       const nx = (0.2 + 0.6 * Math.random()) * stars.width;
       const ny = (0.15 + 0.6 * Math.random()) * stars.height;
@@ -318,7 +370,6 @@ function rampColor(t, stops) {
       g.fillStyle = grad;
       g.beginPath(); g.arc(nx, ny, nr, 0, TAU); g.fill();
     }
-    // stars
     for (let i = 0; i < 270; i++) {
       const sx = Math.random() * stars.width, sy = Math.random() * stars.height;
       const sr = Math.random() < 0.92 ? 0.7 + Math.random() * 0.7 : 1.4 + Math.random() * 1.1;
@@ -327,10 +378,12 @@ function rampColor(t, stops) {
     }
   }
 
-  // camera state
+  // camera + effect state
   let theta = 0.6, tilt = 0.98, tiltT = 0.98, zoom = 1, zoomT = 1, spinVel = 0;
-  let anim = 2.5;                          // animation clock (breath/motes phase)
-  let speed = 1;
+  let anim = 2.5;                     // breath/motes phase clock
+  let birth = 0;                      // genesis clock (seconds since regrow)
+  let speed = 1, dome = 0.45;
+  let trails = false, cinematic = false;
 
   // ===== motes: energy flowing outward from the root ========================
   const MOTES = 120;
@@ -345,6 +398,7 @@ function rampColor(t, stops) {
   }
   function resetMotes() { motes = Array.from({ length: MOTES }, () => { const m = {}; spawnMote(m); return m; }); }
   function stepMote(m, dt) {
+    if (birth < scene.edges[m.e].bt + RING_GROW) return;   // wait for the ring to grow
     m.t += dt * m.sp;
     if (m.t >= 1) {
       const node = scene.edges[m.e].child;
@@ -352,16 +406,33 @@ function rampColor(t, stops) {
       if (kids.length) {
         m.e = kids[(Math.random() * kids.length) | 0] - 1;
         m.t = 0; m.lx = null;
-      } else spawnMote(m);                 // reached a leaf: return to the core
+      } else {
+        if (m.lx !== null) burst(m.lx, m.ly, scene.edges[m.e].d);   // leaf spark
+        spawnMote(m);
+      }
     }
   }
 
-  // ===== projection =========================================================
+  // ===== leaf sparks (screen-space, short-lived) ============================
+  let sparks = [];
+  function burst(x, y, d) {
+    const [h] = rampColor(d / scene.maxD, pal.stops);
+    const count = 6 + (Math.random() * 4) | 0;
+    for (let i = 0; i < count; i++) {
+      const a = Math.random() * TAU, v = 24 + Math.random() * 60;
+      sparks.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v,
+        life: 0.5 + Math.random() * 0.3, life0: 0.8, h });
+    }
+    if (sparks.length > 240) sparks.splice(0, sparks.length - 240);
+  }
+
+  // ===== projection (plane point + out-of-plane dome lift h) ================
   let cosT = 1, sinT = 0;
-  function project(r, ang, out) {
-    const rr = r * zoom;
+  function project(r, ang, h, out) {
+    const rr = r * zoom, hh = h * zoom;
     const x = rr * Math.cos(ang), y = rr * Math.sin(ang);
-    const y2 = y * cosT, z = y * sinT;
+    const y2 = y * cosT + hh * sinT;
+    const z = y * sinT - hh * cosT;
     const p = F / (F + z);
     out.x = cx + x * p * R;
     out.y = cy - y2 * p * R;
@@ -372,45 +443,68 @@ function rampColor(t, stops) {
   // ===== render =============================================================
   const bandA = [0.5, 0.8, 1.12], bandW = [0.8, 1, 1.3];
   function bandOf(p) { return p < 0.94 ? 0 : p < 1.1 ? 1 : 2; }
+  const clamp01 = (t) => Math.min(1, Math.max(0, t));
+  const easeOut = (t) => 1 - Math.pow(1 - clamp01(t), 3);
 
-  function render() {
-    ctx.fillStyle = "#05070f";
-    ctx.fillRect(0, 0, W, H);
-    // starfield with a touch of parallax
+  function render(dt) {
+    // trails: fade the previous frame instead of clearing it
+    if (trails && !needClear) {
+      ctx.fillStyle = "rgba(5, 7, 15, 0.28)";
+      ctx.fillRect(0, 0, W, H);
+    } else {
+      ctx.fillStyle = "#05070f";
+      ctx.fillRect(0, 0, W, H);
+      needClear = false;
+    }
     ctx.drawImage(stars, -30 + Math.sin(theta * 0.35) * 9, -30 + (tilt - 0.98) * 46);
 
     if (!scene) return;
     cosT = Math.cos(tilt); sinT = Math.sin(tilt);
     const N2 = 2 * scene.N, sec = Math.PI / scene.N;
+    const aScale = trails ? 0.6 : 1;              // additive blending saturates with trails
 
     ctx.globalCompositeOperation = "lighter";
     ctx.lineCap = "round";
 
-    // -- bucket every projected segment by (depth, distance band) ------------
+    // -- project every (partially revealed) edge into (depth, band) buckets --
     const buckets = new Map(), dots = new Map();
     for (const e of scene.edges) {
+      const rv = easeOut((birth - e.bt) / RING_GROW);       // genesis reveal
+      if (rv <= 0) continue;
       for (let s = 0; s < N2; s++) {
         const base = s * sec, mirrored = (s & 1) === 1;
         let hx = 0, hy = 0, hp = 1, has = false;
-        for (const smp of e.s) {
+        for (let j = 0; j <= SUB; j++) {
+          let smp = e.s[j];
+          const frac = j / SUB;
+          if (frac > rv) {                                   // interpolate the growing tip
+            const prev = e.s[j - 1], t = (rv - (j - 1) / SUB) * SUB;
+            smp = {
+              r: prev.r + (e.s[j].r - prev.r) * t,
+              pc: prev.pc + (e.s[j].pc - prev.pc) * t,
+              dv: prev.dv + (e.s[j].dv - prev.dv) * t,
+              hv: prev.hv + (e.s[j].hv - prev.hv) * t,
+            };
+            j = SUB + 1;                                     // stop after this sample
+          }
           const a0 = mirrored ? base + sec - smp.pc : base + smp.pc;
           const breath = 1 + 0.05 * Math.sin(anim * 1.2 - smp.dv * 0.7);
-          project(smp.r * breath, a0 + theta, P0);
+          project(smp.r * breath, a0 + theta, dome * smp.hv, P0);
           if (has) {
-            const pm = (hp + P0.p) / 2;
-            const key = e.d * 3 + bandOf(pm);
+            const key = e.d * 3 + bandOf((hp + P0.p) / 2);
             let path = buckets.get(key);
             if (!path) { path = new Path2D(); buckets.set(key, path); }
             path.moveTo(hx, hy); path.lineTo(P0.x, P0.y);
           }
           hx = P0.x; hy = P0.y; hp = P0.p; has = true;
         }
-        // node dot at the edge tip
-        const dkey = e.d * 3 + bandOf(hp);
-        let dp = dots.get(dkey);
-        if (!dp) { dp = new Path2D(); dots.set(dkey, dp); }
-        const rad = (1.3 + 1.1 * (1 - e.d / scene.maxD)) * hp * zoom;
-        dp.moveTo(hx + rad, hy); dp.arc(hx, hy, rad, 0, TAU);
+        if (rv >= 1) {                                       // node dot once fully grown
+          const dkey = e.d * 3 + bandOf(hp);
+          let dp = dots.get(dkey);
+          if (!dp) { dp = new Path2D(); dots.set(dkey, dp); }
+          const rad = (1.3 + 1.1 * (1 - e.d / scene.maxD)) * hp * zoom;
+          dp.moveTo(hx + rad, hy); dp.arc(hx, hy, rad, 0, TAU);
+        }
       }
     }
 
@@ -420,44 +514,49 @@ function rampColor(t, stops) {
       const [h, s, l] = rampColor(d / scene.maxD, pal.stops);
       const pulse = 0.7 + 0.3 * Math.sin(anim * 1.2 - d * 0.7 + 1.3);
       ctx.lineWidth = 7 * bandW[band] * zoom;
-      ctx.strokeStyle = "hsla(" + h + "," + s + "%," + l + "%," + (0.05 * bandA[band] * pulse) + ")";
+      ctx.strokeStyle = "hsla(" + h + "," + s + "%," + l + "%," + (0.05 * bandA[band] * pulse * aScale) + ")";
       ctx.stroke(path);
       ctx.lineWidth = 1.5 * bandW[band] * zoom;
-      ctx.strokeStyle = "hsla(" + h + "," + s + "%," + Math.min(86, l + 14) + "%," + (0.58 * bandA[band] * pulse) + ")";
+      ctx.strokeStyle = "hsla(" + h + "," + s + "%," + Math.min(86, l + 14) + "%," + (0.58 * bandA[band] * pulse * aScale) + ")";
       ctx.stroke(path);
     }
     for (const [key, dp] of dots) {
       const d = (key / 3) | 0, band = key % 3;
       const [h, s, l] = rampColor(d / scene.maxD, pal.stops);
-      ctx.fillStyle = "hsla(" + h + "," + s + "%," + Math.min(92, l + 24) + "%," + (0.8 * bandA[band]) + ")";
+      ctx.fillStyle = "hsla(" + h + "," + s + "%," + Math.min(92, l + 24) + "%," + (0.8 * bandA[band] * aScale) + ")";
       ctx.fill(dp);
     }
 
-    // -- the core ------------------------------------------------------------
+    // -- the core (floats at the dome's apex; ignites at genesis) ------------
+    project(0, 0, dome * 0.6, P1);
+    const ignite = easeOut(birth / RING_GROW);
+    const flash = Math.exp(-birth * 2.2);
     const pulse = 1 + 0.1 * Math.sin(anim * 1.2 + 0.8);
-    const cr = 40 * zoom * pulse;
+    const cr = 40 * zoom * pulse * (0.15 + 0.85 * ignite) * P1.p;
     const [ch, cs, cl] = pal.core;
-    const cg = ctx.createRadialGradient(cx, cy, 0, cx, cy, cr);
-    cg.addColorStop(0, "hsla(" + ch + "," + cs + "%," + Math.min(92, cl + 16) + "%,0.95)");
-    cg.addColorStop(0.3, "hsla(" + ch + "," + cs + "%," + cl + "%,0.4)");
+    const cg = ctx.createRadialGradient(P1.x, P1.y, 0, P1.x, P1.y, Math.max(1, cr));
+    cg.addColorStop(0, "hsla(" + ch + "," + cs + "%," + Math.min(96, cl + 16 + 24 * flash) + "%,0.95)");
+    cg.addColorStop(0.3, "hsla(" + ch + "," + cs + "%," + cl + "%," + (0.4 + 0.3 * flash) + ")");
     cg.addColorStop(1, "hsla(0,0%,0%,0)");
     ctx.fillStyle = cg;
-    ctx.beginPath(); ctx.arc(cx, cy, cr, 0, TAU); ctx.fill();
+    ctx.beginPath(); ctx.arc(P1.x, P1.y, Math.max(1, cr), 0, TAU); ctx.fill();
 
     // -- energy motes --------------------------------------------------------
     for (const m of motes) {
       const e = scene.edges[m.e];
+      if (birth < e.bt + RING_GROW) continue;
       const x = m.t * SUB, i0 = Math.min(SUB - 1, Math.floor(x)), f = x - i0;
       const a = e.s[i0], b = e.s[i0 + 1];
       const r = a.r + (b.r - a.r) * f;
       const pc = a.pc + (b.pc - a.pc) * f;
       const dv = a.dv + (b.dv - a.dv) * f;
+      const hv = a.hv + (b.hv - a.hv) * f;
       const base = m.copy * sec, mirrored = (m.copy & 1) === 1;
       const a0 = mirrored ? base + sec - pc : base + pc;
       const breath = 1 + 0.05 * Math.sin(anim * 1.2 - dv * 0.7);
-      project(r * breath, a0 + theta, P1);
-      const [h, s, l] = rampColor(e.d / scene.maxD, pal.stops);
-      if (m.lx !== null) {                 // short light-trail
+      project(r * breath, a0 + theta, dome * hv, P1);
+      const [h, s] = rampColor(e.d / scene.maxD, pal.stops);
+      if (m.lx !== null) {
         ctx.lineWidth = 1.1 * P1.p;
         ctx.strokeStyle = "hsla(" + h + "," + s + "%,80%," + (0.35 * P1.p) + ")";
         ctx.beginPath(); ctx.moveTo(m.lx, m.ly); ctx.lineTo(P1.x, P1.y); ctx.stroke();
@@ -465,6 +564,17 @@ function rampColor(t, stops) {
       ctx.fillStyle = "hsla(" + h + "," + s + "%,86%," + (0.9 * P1.p) + ")";
       ctx.beginPath(); ctx.arc(P1.x, P1.y, 1.5 * P1.p * zoom, 0, TAU); ctx.fill();
       m.lx = P1.x; m.ly = P1.y;
+    }
+
+    // -- leaf sparks ---------------------------------------------------------
+    for (let i = sparks.length - 1; i >= 0; i--) {
+      const sp = sparks[i];
+      sp.life -= dt;
+      if (sp.life <= 0) { sparks.splice(i, 1); continue; }
+      sp.x += sp.vx * dt; sp.y += sp.vy * dt;
+      const a = sp.life / sp.life0;
+      ctx.fillStyle = "hsla(" + sp.h + ",95%,82%," + (0.85 * a) + ")";
+      ctx.beginPath(); ctx.arc(sp.x, sp.y, 1.2 + 1.4 * a, 0, TAU); ctx.fill();
     }
 
     ctx.globalCompositeOperation = "source-over";
@@ -476,20 +586,28 @@ function rampColor(t, stops) {
     if (!lastTs) lastTs = ts;
     let dt = (ts - lastTs) / 1000; lastTs = ts;
     if (dt > 0.1) dt = 0.1;
+    const sdt = dt * speed;
 
-    anim += dt * speed;
+    anim += sdt;
+    birth += sdt;
     theta += dt * 0.10 * speed;
     if (!dragging) { theta += spinVel; spinVel *= 0.95; }
+    if (cinematic) {
+      tiltT = 0.88 + 0.32 * Math.sin(anim * 0.08);
+      zoomT = 1 + 0.14 * Math.sin(anim * 0.055 + 1.7);
+    }
     tilt += (tiltT + 0.04 * Math.sin(anim * 0.13) - tilt) * 0.06;
     zoom += (zoomT - zoom) * 0.08;
-    for (const m of motes) stepMote(m, dt * speed);
+    for (const m of motes) stepMote(m, sdt);
 
-    render();
+    render(sdt);
     requestAnimationFrame(frame);
   }
 
   // ===== interaction: orbit + zoom ==========================================
   let lastX = 0, lastY = 0;
+  const driftBtn = document.getElementById("driftBtn");
+  function stopCinematic() { cinematic = false; driftBtn.classList.remove("active"); }
   canvas.addEventListener("pointerdown", (e) => {
     dragging = true; lastX = e.clientX; lastY = e.clientY;
     canvas.classList.add("dragging");
@@ -499,44 +617,61 @@ function rampColor(t, stops) {
     if (!dragging) return;
     const dx = e.clientX - lastX, dy = e.clientY - lastY;
     lastX = e.clientX; lastY = e.clientY;
+    stopCinematic();
     theta += dx * 0.005; spinVel = dx * 0.005;
     tiltT = Math.min(1.42, Math.max(0.3, tiltT - dy * 0.004));
-    if (reduceMotion) render();
+    if (reduceMotion) render(0);
   });
   const endDrag = () => { dragging = false; canvas.classList.remove("dragging"); };
   canvas.addEventListener("pointerup", endDrag);
   canvas.addEventListener("pointercancel", endDrag);
   canvas.addEventListener("wheel", (e) => {
     e.preventDefault();
+    stopCinematic();
     zoomT = Math.min(1.8, Math.max(0.6, zoomT * (e.deltaY < 0 ? 1.08 : 0.925)));
-    if (reduceMotion) { zoom = zoomT; render(); }
+    if (reduceMotion) { zoom = zoomT; render(0); }
   }, { passive: false });
 
   // ===== controls ===========================================================
-  let kVal = 3, depthVal = 4, petalVal = 6;
+  let mode = "crystal", kVal = 3, depthVal = 4, petalVal = 6;
+  let snowSize = 90, snowSeed = (Date.now() % 100000) * 2654435761 >>> 0;
   const depthR = document.getElementById("depthR"), depthV = document.getElementById("depthV");
+  const snowR = document.getElementById("snowR"), snowV = document.getElementById("snowV");
   const petalR = document.getElementById("petalR"), petalV = document.getElementById("petalV");
+  const domeR = document.getElementById("domeR"), domeV = document.getElementById("domeV");
   const speedR = document.getElementById("speedR"), speedV = document.getElementById("speedV");
 
   function refreshReadout() {
     document.getElementById("rNodes").textContent = scene.n;
     document.getElementById("rGrid").textContent = scene.grid;
-    document.getElementById("rK").textContent = "k = " + kVal;
+    document.getElementById("rK").textContent = mode === "snow" ? "random" : "k = " + kVal;
     document.getElementById("rSec").textContent = 2 * scene.N;
   }
-  function rebuild() {
-    scene = buildScene(kVal, depthVal, petalVal);
+  function rebuild(regrow) {
+    scene = buildScene({ mode, k: kVal, depth: depthVal, petals: petalVal, snowSize, snowSeed });
     resetMotes();
+    sparks = [];
+    if (regrow) birth = reduceMotion ? 1e9 : 0;
+    needClear = true;
     refreshReadout();
-    if (reduceMotion) render();
+    if (reduceMotion) { birth = 1e9; render(0); }
   }
 
   document.getElementById("palSeg").addEventListener("click", (e) => {
     const b = e.target.closest("button"); if (!b) return;
     for (const el of e.currentTarget.children) el.classList.toggle("active", el === b);
     pal = PALETTES[b.dataset.p];
-    buildStars();
-    if (reduceMotion) render();
+    buildStars(); needClear = true;
+    if (reduceMotion) render(0);
+  });
+  document.getElementById("modeSeg").addEventListener("click", (e) => {
+    const b = e.target.closest("button"); if (!b) return;
+    for (const el of e.currentTarget.children) el.classList.toggle("active", el === b);
+    mode = b.dataset.m;
+    document.getElementById("kGroup").classList.toggle("hidden", mode === "snow");
+    document.getElementById("depthGroup").classList.toggle("hidden", mode === "snow");
+    document.getElementById("snowGroup").classList.toggle("hidden", mode !== "snow");
+    rebuild(true);
   });
   document.getElementById("kSeg").addEventListener("click", (e) => {
     const b = e.target.closest("button"); if (!b) return;
@@ -545,25 +680,62 @@ function rampColor(t, stops) {
     const cap = DEPTH_CAP[kVal];
     depthR.max = cap;
     if (depthVal > cap) { depthVal = cap; depthR.value = cap; depthV.textContent = cap; }
-    rebuild();
+    rebuild(true);
   });
-  depthR.addEventListener("input", () => { depthVal = +depthR.value; depthV.textContent = depthVal; rebuild(); });
+  depthR.addEventListener("input", () => { depthVal = +depthR.value; depthV.textContent = depthVal; rebuild(true); });
+  snowR.addEventListener("input", () => { snowSize = +snowR.value; snowV.textContent = snowSize; rebuild(true); });
+  document.getElementById("newSnowBtn").addEventListener("click", () => {
+    snowSeed = (snowSeed * 1664525 + 1013904223) >>> 0;
+    rebuild(true);
+  });
   petalR.addEventListener("input", () => {
     petalVal = +petalR.value; petalV.textContent = petalVal;
     setPetals(scene, petalVal);
     for (const m of motes) m.copy = m.copy % (2 * petalVal);
+    needClear = true;
     refreshReadout();
-    if (reduceMotion) render();
+    if (reduceMotion) render(0);
+  });
+  domeR.addEventListener("input", () => {
+    dome = +domeR.value; domeV.textContent = dome.toFixed(2);
+    if (reduceMotion) render(0);
   });
   speedR.addEventListener("input", () => { speed = +speedR.value; speedV.textContent = speed.toFixed(1); });
 
-  window.addEventListener("resize", () => { fit(); if (reduceMotion) render(); });
+  document.getElementById("replayBtn").addEventListener("click", () => {
+    birth = reduceMotion ? 1e9 : 0;
+    sparks = [];
+    resetMotes();
+    needClear = true;
+    if (reduceMotion) render(0);
+  });
+  document.getElementById("trailsBtn").addEventListener("click", (e) => {
+    trails = !trails;
+    e.currentTarget.classList.toggle("active", trails);
+    needClear = true;
+  });
+  driftBtn.addEventListener("click", () => {
+    cinematic = !cinematic;
+    driftBtn.classList.toggle("active", cinematic);
+  });
+  document.getElementById("pngBtn").addEventListener("click", () => {
+    canvas.toBlob((blob) => {
+      if (!blob) return;
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = "living-mandala.png";
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+    });
+  });
+
+  window.addEventListener("resize", () => { fit(); if (reduceMotion) render(0); });
 
   // ===== go =================================================================
   fit();
   depthR.max = DEPTH_CAP[kVal];
-  rebuild();
-  if (reduceMotion) render();             // one composed still frame
+  rebuild(true);
+  if (reduceMotion) render(0);          // one composed, fully-bloomed still frame
   else requestAnimationFrame(frame);
 })();
 </script>
