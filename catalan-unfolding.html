@@ -1,0 +1,544 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Catalan Unfolding</title>
+<meta name="description" content="Reads a balanced-parenthesis string and watches a tree unfold with its Dyck-path mountains, illustrating the tree-parenthesis bijection.">
+<meta name="author" content="Leandros Evangelidakis">
+<meta name="theme-color" content="#0a0e1c">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='92'>%F0%9F%8C%B3</text></svg>">
+<style>
+  :root {
+    --bg1: #e8ebf1; --bg2: #dfe3ec; --ink: #17213c; --muted: #59637f;
+    --hair: rgba(23,33,60,0.16); --panel: rgba(240,242,247,0.72);
+    --panel-brd: rgba(23,33,60,0.14); --seed: #b07d1f; --cool: #177f6b;
+    --focus: #2f6df0; --bad: #c0392b;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg1: #0a0e1c; --bg2: #0c1226; --ink: #e9edf8; --muted: #8a94b2;
+      --hair: rgba(180,190,220,0.16); --panel: rgba(17,24,46,0.62);
+      --panel-brd: rgba(180,190,220,0.16); --seed: #f3c765; --cool: #5ad6c0;
+      --focus: #7aa2ff; --bad: #ff6b6b;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="light"] {
+    --bg1:#e8ebf1;--bg2:#dfe3ec;--ink:#17213c;--muted:#59637f;--hair:rgba(23,33,60,0.16);
+    --panel:rgba(240,242,247,0.72);--panel-brd:rgba(23,33,60,0.14);--seed:#b07d1f;--cool:#177f6b;--focus:#2f6df0;--bad:#c0392b;color-scheme:light;
+  }
+  :root[data-theme="dark"] {
+    --bg1:#0a0e1c;--bg2:#0c1226;--ink:#e9edf8;--muted:#8a94b2;--hair:rgba(180,190,220,0.16);
+    --panel:rgba(17,24,46,0.62);--panel-brd:rgba(180,190,220,0.16);--seed:#f3c765;--cool:#5ad6c0;--focus:#7aa2ff;--bad:#ff6b6b;color-scheme:dark;
+  }
+
+  * { box-sizing: border-box; }
+  :root {
+    --serif: "Iowan Old Style","Palatino Linotype",Palatino,"Book Antiqua",Georgia,serif;
+    --sans: ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+    --mono: ui-monospace,"SF Mono","JetBrains Mono",Menlo,Consolas,monospace;
+  }
+  html, body { margin: 0; height: 100%; }
+  body {
+    font-family: var(--sans); color: var(--ink); overflow: hidden;
+    background: radial-gradient(120% 90% at 82% 8%, var(--bg2), var(--bg1) 60%);
+  }
+
+  .stage-wrap { position: fixed; inset: 0; }
+  #stage { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+
+  .masthead {
+    position: absolute; top: 0; left: 0; max-width: min(42ch, 56vw);
+    padding: 24px 28px 36px; pointer-events: none;
+    background: linear-gradient(160deg, var(--bg1) 0%, transparent 74%);
+  }
+  .eyebrow { font-size: 11px; letter-spacing: 0.22em; text-transform: uppercase;
+    color: var(--muted); font-weight: 600; margin-bottom: 10px; }
+  h1 { font-family: var(--serif); font-weight: 600; font-size: clamp(24px, 4vw, 42px);
+    line-height: 1.03; margin: 0 0 10px; text-wrap: balance; }
+  .dek { font-size: 13.5px; line-height: 1.5; color: var(--muted); margin: 0; max-width: 38ch; }
+
+  .panel { background: var(--panel); border: 1px solid var(--panel-brd);
+    border-radius: 12px; -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); }
+
+  /* Parenthesis string strip */
+  .strip {
+    position: absolute; top: 20px; left: 50%; transform: translateX(-50%);
+    max-width: calc(100vw - 420px); overflow-x: auto; overflow-y: hidden;
+    padding: 10px 16px; font-family: var(--mono);
+    font-size: clamp(17px, 2.3vw, 27px); white-space: nowrap; letter-spacing: 3px;
+  }
+  .strip .ch { opacity: 0.3; transition: opacity 0.12s; padding: 0 1px; border-radius: 4px; }
+  .strip .ch.open { color: var(--seed); }
+  .strip .ch.close { color: var(--cool); }
+  .strip .ch.done { opacity: 0.62; }
+  .strip .ch.active { opacity: 1; background: var(--hair);
+    box-shadow: 0 0 0 1px var(--panel-brd); }
+
+  /* Readout */
+  .readout { position: absolute; top: 22px; right: 22px; width: 250px; padding: 14px 16px;
+    font-family: var(--mono); font-size: 12px; line-height: 1.5; }
+  .readout .status { display: flex; align-items: center; gap: 8px; color: var(--muted);
+    text-transform: uppercase; letter-spacing: 0.12em; font-size: 10px; margin-bottom: 10px; }
+  .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--seed);
+    box-shadow: 0 0 8px var(--seed); flex: none; }
+  .act { color: var(--ink); font-size: 13px; min-height: 1.4em; }
+  .act .paren { font-family: var(--serif); font-style: italic; font-size: 17px; }
+  .act .open { color: var(--seed); } .act .close { color: var(--cool); }
+  .stats { color: var(--muted); margin-top: 10px; display: flex; gap: 14px;
+    font-variant-numeric: tabular-nums; }
+  .stats b { color: var(--ink); font-weight: 600; }
+
+  /* Controls */
+  .controls { position: absolute; left: 50%; bottom: 20px; transform: translateX(-50%);
+    display: flex; align-items: center; gap: 16px; padding: 12px 16px; flex-wrap: wrap;
+    justify-content: center; max-width: calc(100vw - 32px); }
+  .group { display: flex; align-items: center; gap: 8px; }
+  .group + .group { border-left: 1px solid var(--hair); padding-left: 16px; }
+  .lbl { font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
+  .seg { display: flex; gap: 4px; }
+  button { font-family: var(--sans); font-size: 12.5px; color: var(--ink); background: transparent;
+    border: 1px solid var(--panel-brd); padding: 6px 10px; border-radius: 8px; cursor: pointer;
+    transition: background 0.15s, border-color 0.15s, color 0.15s; }
+  button:hover { border-color: var(--ink); }
+  button.active { background: var(--seed); border-color: var(--seed); color: #0a0e1c; }
+  .icon-btn { min-width: 38px; }
+  input[type="text"] {
+    font-family: var(--mono); font-size: 13px; color: var(--ink); background: transparent;
+    border: 1px solid var(--panel-brd); border-radius: 8px; padding: 6px 9px; width: 150px;
+    letter-spacing: 1px; outline: none;
+  }
+  input[type="text"].bad { border-color: var(--bad); color: var(--bad); }
+  input[type="range"] { -webkit-appearance: none; appearance: none; width: 90px; height: 4px;
+    border-radius: 3px; background: var(--hair); outline: none; cursor: pointer; }
+  input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 14px; height: 14px;
+    border-radius: 50%; background: var(--ink); border: 2px solid var(--bg1); }
+  input[type="range"]::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%;
+    background: var(--ink); border: 2px solid var(--bg1); }
+  .val { font-family: var(--mono); font-size: 11px; color: var(--muted); min-width: 2.2ch;
+    text-align: right; font-variant-numeric: tabular-nums; }
+  :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+  .credit { position: absolute; right: 24px; bottom: 82px; font-size: 11px; color: var(--muted);
+    text-align: right; font-family: var(--mono); pointer-events: none; }
+  .credit em { font-family: var(--serif); font-style: italic; color: var(--ink); }
+
+  @media (max-width: 780px) {
+    .readout { display: none; }
+    .strip { max-width: calc(100vw - 40px); top: 96px; }
+    .masthead { max-width: 100vw; background: linear-gradient(180deg, var(--bg1) 32%, transparent); }
+    .credit { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<div class="stage-wrap">
+  <canvas id="stage"></canvas>
+
+  <div class="masthead">
+    <div class="eyebrow">Trees ↔ parentheses · the bijection</div>
+    <h1>Catalan Unfolding</h1>
+    <p class="dek">Read a balanced string left to right. A pen descends on “(” to grow
+      a child, and climbs on “)” to return. The tree and its Dyck-path mountains are
+      one and the same object.</p>
+  </div>
+
+  <div class="strip panel" id="strip"></div>
+
+  <div class="readout panel">
+    <div class="status"><span class="dot" id="statusDot"></span><span id="statusText">Reading</span></div>
+    <div class="act" id="actLine">&nbsp;</div>
+    <div class="stats">
+      <span>nodes <b id="stNodes">1</b></span>
+      <span>depth <b id="stDepth">0</b></span>
+      <span>leaves <b id="stLeaves">1</b></span>
+    </div>
+  </div>
+
+  <div class="controls panel">
+    <div class="group">
+      <span class="lbl">Tree</span>
+      <div class="seg" id="presetSeg">
+        <button data-s="(()())(())" class="active">A</button>
+        <button data-s="((()))">B</button>
+        <button data-s="()()()">C</button>
+        <button data-s="(()(()())())">D</button>
+      </div>
+    </div>
+    <div class="group">
+      <span class="lbl">Yours</span>
+      <input type="text" id="customStr" placeholder="(()())" spellcheck="false" autocomplete="off">
+    </div>
+    <div class="group">
+      <button id="randBtn">Random</button>
+      <input type="range" id="sizeR" min="2" max="14" step="1" value="6" title="pairs">
+      <span class="val" id="sizeV">6</span>
+    </div>
+    <div class="group">
+      <span class="lbl">Speed</span>
+      <input type="range" id="speedR" min="0.4" max="4" step="0.1" value="1.6">
+      <span class="val" id="speedV">1.6</span>
+    </div>
+    <div class="group">
+      <button class="icon-btn" id="playBtn" title="Play / pause">❚❚</button>
+      <button class="icon-btn" id="replayBtn" title="Replay">↻</button>
+    </div>
+  </div>
+
+  <div class="credit">Catalan numbers · Dyck paths<br><em>Monotone Drawings of Trees</em> · L. Evangelidakis</div>
+</div>
+
+<script>
+(() => {
+  "use strict";
+
+  const PAL = {
+    dark: { axis: "rgba(180,190,220,0.16)", grid: "rgba(180,190,220,0.09)",
+      node: "#eef2ff", nodeStroke: "#0a0e1c", seed: "#f3c765", cool: "#5ad6c0",
+      label: "rgba(210,216,235,0.66)", pen: "#f3c765", glow: true,
+      dyckFill: "rgba(243,199,101,0.10)", treeL: 62 },
+    light: { axis: "rgba(30,40,72,0.22)", grid: "rgba(30,40,72,0.08)",
+      node: "#1b2444", nodeStroke: "#e8ebf1", seed: "#b07d1f", cool: "#177f6b",
+      label: "rgba(40,50,80,0.72)", pen: "#b07d1f", glow: false,
+      dyckFill: "rgba(176,125,31,0.12)", treeL: 40 },
+  };
+  const prefersDark = () => matchMedia("(prefers-color-scheme: dark)").matches;
+  const themeName = () => {
+    const t = document.documentElement.getAttribute("data-theme");
+    return (t === "dark" || t === "light") ? t : (prefersDark() ? "dark" : "light");
+  };
+  let pal = PAL[themeName()];
+  const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  // depth -> warm(gold) to cool(teal) ramp
+  function depthColor(d, maxD, a = 1) {
+    const t = maxD <= 0 ? 0 : d / maxD;
+    const hue = 44 + t * 124;             // 44 (gold) -> 168 (teal)
+    const s = themeName() === "dark" ? 72 : 58;
+    return `hsla(${hue}, ${s}%, ${pal.treeL}%, ${a})`;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Parse a parenthesis string into a tree + the pen "tour" + Dyck depths.
+  // (This is Tree_Operations.paren_to_nxgraph, made visible.)
+  // ---------------------------------------------------------------------------
+  function build(s) {
+    const nodes = [{ id: 0, parent: -1, children: [], depth: 0, createStep: -1 }];
+    const stack = [0];
+    const steps = [];
+    let bal = 0, ok = true;
+    for (const ch of s) {
+      if (ch === "(") {
+        bal++;
+        const par = stack[stack.length - 1];
+        const id = nodes.length;
+        nodes.push({ id, parent: par, children: [], depth: nodes[par].depth + 1, createStep: steps.length });
+        nodes[par].children.push(id);
+        stack.push(id);
+        steps.push({ char: "(", node: id, action: "descend" });
+      } else if (ch === ")") {
+        bal--;
+        if (bal < 0) { ok = false; break; }
+        const left = stack.pop();
+        steps.push({ char: ")", node: stack[stack.length - 1], action: "return", left });
+      } else { ok = false; break; }
+    }
+    if (bal !== 0) ok = false;
+    return { nodes, steps, ok };
+  }
+
+  function tidyLayout(nodes) {
+    let leaf = 0, maxX = 0, maxD = 0;
+    (function assign(id) {
+      const ch = nodes[id].children;
+      if (ch.length === 0) nodes[id].x = leaf++;
+      else { for (const c of ch) assign(c); nodes[id].x = (nodes[ch[0]].x + nodes[ch[ch.length - 1]].x) / 2; }
+      nodes[id].y = nodes[id].depth;
+      maxX = Math.max(maxX, nodes[id].x); maxD = Math.max(maxD, nodes[id].depth);
+    })(0);
+    return { maxX, maxD, leaves: leaf };
+  }
+
+  function randomDyck(pairs, seed) {
+    let s = seed >>> 0;
+    const rnd = () => (s = (s * 1664525 + 1013904223) >>> 0) / 4294967296;
+    let out = "", open = 0, close = 0;
+    for (let i = 0; i < 2 * pairs; i++) {
+      const canOpen = open < pairs, canClose = close < open;
+      let doOpen;
+      if (!canClose) doOpen = true;
+      else if (!canOpen) doOpen = false;
+      else doOpen = rnd() < (pairs - open) / (2 * pairs - open - close);  // uniform-ish walk
+      if (doOpen) { out += "("; open++; } else { out += ")"; close++; }
+    }
+    return out;
+  }
+
+  // Node label A,B,... (as in the algorithm)
+  const labelFor = (i) => i < 26 ? String.fromCharCode(65 + i)
+    : String.fromCharCode(65 + (i / 26 | 0) - 1) + String.fromCharCode(65 + i % 26);
+
+  // ---------------------------------------------------------------------------
+  // Scene
+  // ---------------------------------------------------------------------------
+  let scene = null, seedCounter = 3;
+  const stripEl = document.getElementById("strip");
+  let chEls = [];
+
+  function buildScene(str) {
+    const b = build(str);
+    if (!b.ok) return null;
+    const geo = tidyLayout(b.nodes);
+    // dyck depth after each step
+    const dyck = b.steps.map((st) => b.nodes[st.node].depth);
+    // per-step leaf/depth running stats
+    let maxDepthSeen = 0;
+    const depthAt = [0], nodesAt = [1];
+    for (let i = 0; i < b.steps.length; i++) {
+      const d = b.nodes[b.steps[i].node].depth;
+      maxDepthSeen = Math.max(maxDepthSeen, d);
+      depthAt.push(maxDepthSeen);
+      nodesAt.push(b.steps[i].action === "descend" ? nodesAt[nodesAt.length - 1] + 1 : nodesAt[nodesAt.length - 1]);
+    }
+    // render the string strip
+    stripEl.innerHTML = "";
+    chEls = [];
+    for (const c of str) {
+      const sp = document.createElement("span");
+      sp.className = "ch " + (c === "(" ? "open" : "close");
+      sp.textContent = c;
+      stripEl.appendChild(sp);
+      chEls.push(sp);
+    }
+    const total = b.steps.length;
+    return { str, ...b, geo, dyck, depthAt, nodesAt, len: total, total,
+      dur: total + 1.4 };
+  }
+
+  // ---------------------------------------------------------------------------
+  // Canvas
+  // ---------------------------------------------------------------------------
+  const canvas = document.getElementById("stage");
+  const ctx = canvas.getContext("2d");
+  let W = 0, H = 0, dpr = 1;
+  let reg = {};   // regions
+
+  function fit() {
+    dpr = Math.min(2, window.devicePixelRatio || 1);
+    W = canvas.clientWidth; H = canvas.clientHeight;
+    canvas.width = Math.round(W * dpr); canvas.height = Math.round(H * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const padL = 74, padR = 74;
+    const ctrlH = 76, dyckH = Math.min(140, H * 0.2);
+    reg = {
+      padL, padR,
+      treeTop: Math.min(170, H * 0.26), treeBot: H - ctrlH - dyckH - 42,
+      dyckTop: H - ctrlH - dyckH, dyckBot: H - ctrlH - 16,
+      w: W - padL - padR,
+    };
+  }
+
+  const easeIO = (t) => t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+  const clamp01 = (t) => Math.min(1, Math.max(0, t));
+
+  function tX(x) { return reg.padL + (scene.geo.maxX ? x / scene.geo.maxX : 0.5) * reg.w; }
+  function tY(d) { return reg.treeTop + (scene.geo.maxD ? d / scene.geo.maxD : 0) * (reg.treeBot - reg.treeTop); }
+  function dX(i) { return reg.padL + (scene.len ? i / scene.len : 0) * reg.w; }
+  function dY(d) { const md = scene.geo.maxD || 1; return reg.dyckBot - (d / md) * (reg.dyckBot - reg.dyckTop); }
+
+  function penAfter(i) { return i < 0 ? scene.nodes[0] : scene.nodes[scene.steps[Math.min(i, scene.len - 1)].node]; }
+
+  function draw(p, shimmer) {
+    ctx.clearRect(0, 0, W, H);
+    if (!scene) return;
+    const N = scene.nodes, i = Math.floor(p), frac = p - i;
+
+    // ---- Dyck baseline + grid ----
+    ctx.strokeStyle = pal.grid; ctx.lineWidth = 1;
+    for (let d = 0; d <= scene.geo.maxD; d++) {
+      ctx.beginPath(); ctx.moveTo(reg.padL, dY(d)); ctx.lineTo(reg.padL + reg.w, dY(d)); ctx.stroke();
+    }
+    ctx.strokeStyle = pal.axis;
+    ctx.beginPath(); ctx.moveTo(reg.padL, dY(0)); ctx.lineTo(reg.padL + reg.w, dY(0)); ctx.stroke();
+
+    // ---- Dyck mountains up to p ----
+    const pts = [[dX(0), dY(0)]];
+    const upTo = Math.min(scene.len, i + 1);
+    for (let k = 0; k < upTo; k++) {
+      pts.push([k === i ? dX(i + frac) : dX(k + 1), dY(scene.dyck[k])]);
+    }
+    // fill
+    ctx.beginPath();
+    ctx.moveTo(pts[0][0], dY(0));
+    for (const pt of pts) ctx.lineTo(pt[0], pt[1]);
+    ctx.lineTo(pts[pts.length - 1][0], dY(0));
+    ctx.closePath();
+    ctx.fillStyle = pal.dyckFill; ctx.fill();
+    // stroke
+    ctx.beginPath(); ctx.moveTo(pts[0][0], pts[0][1]);
+    for (const pt of pts) ctx.lineTo(pt[0], pt[1]);
+    ctx.strokeStyle = pal.pen; ctx.lineWidth = 2;
+    if (pal.glow) { ctx.shadowBlur = 6; ctx.shadowColor = pal.pen; }
+    ctx.stroke(); ctx.shadowBlur = 0;
+
+    // ---- Tree: revealed edges + nodes ----
+    // pen position (for the active edge)
+    const a = penAfter(i - 1), bnode = penAfter(i);
+    const pen = {
+      x: tX(a.x) + (tX(bnode.x) - tX(a.x)) * easeIO(frac),
+      y: tY(a.y) + (tY(bnode.y) - tY(a.y)) * easeIO(frac),
+    };
+
+    for (let k = 1; k < N.length; k++) {
+      const nd = N[k];
+      if (nd.createStep > i) continue;                 // not yet created
+      const par = N[nd.parent];
+      const active = nd.createStep === i && scene.steps[i] && scene.steps[i].action === "descend";
+      const ex = active ? pen.x : tX(nd.x);
+      const ey = active ? pen.y : tY(nd.y);
+      const col = depthColor(nd.depth, scene.geo.maxD, 0.95 * shimmer);
+      ctx.strokeStyle = col; ctx.lineWidth = active ? 2.4 : 1.8;
+      if (pal.glow) { ctx.shadowBlur = active ? 10 : 4; ctx.shadowColor = col; }
+      ctx.beginPath(); ctx.moveTo(tX(par.x), tY(par.y)); ctx.lineTo(ex, ey); ctx.stroke();
+      ctx.shadowBlur = 0;
+    }
+    // nodes
+    for (let k = 0; k < N.length; k++) {
+      const nd = N[k];
+      if (k > 0 && nd.createStep > i) continue;
+      const active = k > 0 && nd.createStep === i && scene.steps[i] && scene.steps[i].action === "descend";
+      const grow = active ? easeIO(frac) : 1;
+      const nx = active ? pen.x : tX(nd.x), ny = active ? pen.y : tY(nd.y);
+      const isRoot = k === 0;
+      const r = (isRoot ? 6 : 4) * (0.4 + 0.6 * grow);
+      if (pal.glow) { ctx.shadowBlur = isRoot ? 14 : 7; ctx.shadowColor = isRoot ? pal.seed : depthColor(nd.depth, scene.geo.maxD); }
+      ctx.beginPath(); ctx.arc(nx, ny, r, 0, Math.PI * 2);
+      ctx.fillStyle = isRoot ? pal.seed : pal.node; ctx.fill(); ctx.shadowBlur = 0;
+      ctx.lineWidth = 1; ctx.strokeStyle = pal.nodeStroke; ctx.stroke();
+    }
+
+    // ---- the pen (nib) linking tree to the Dyck head ----
+    const penDepth = penAfter(i - 1).depth + (penAfter(i).depth - penAfter(i - 1).depth) * easeIO(frac);
+    const dyckHeadX = dX(i + frac), dyckHeadY = dY(penDepth);
+    ctx.setLineDash([3, 5]); ctx.lineWidth = 1; ctx.strokeStyle = pal.axis;
+    ctx.beginPath(); ctx.moveTo(pen.x, pen.y); ctx.lineTo(dyckHeadX, dyckHeadY); ctx.stroke();
+    ctx.setLineDash([]);
+    for (const [px, py] of [[pen.x, pen.y], [dyckHeadX, dyckHeadY]]) {
+      if (pal.glow) { ctx.shadowBlur = 12; ctx.shadowColor = pal.pen; }
+      ctx.beginPath(); ctx.arc(px, py, 4.5, 0, Math.PI * 2);
+      ctx.fillStyle = pal.pen; ctx.fill(); ctx.shadowBlur = 0;
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Readout + string highlight
+  // ---------------------------------------------------------------------------
+  const statusText = document.getElementById("statusText");
+  const actLine = document.getElementById("actLine");
+  const stNodes = document.getElementById("stNodes");
+  const stDepth = document.getElementById("stDepth");
+  const stLeaves = document.getElementById("stLeaves");
+  let lastActive = -1;
+
+  function updateHud(p) {
+    if (!scene) return;
+    const i = Math.floor(Math.min(p, scene.len - 0.0001));
+    if (i !== lastActive) {
+      if (chEls[lastActive]) chEls[lastActive].classList.remove("active");
+      chEls.forEach((el, k) => el.classList.toggle("done", k < i));
+      if (chEls[i]) chEls[i].classList.add("active");
+      lastActive = i;
+      const st = scene.steps[i];
+      if (st) {
+        if (st.action === "descend")
+          actLine.innerHTML = `<span class="paren open">(</span> descend → create <b>${labelFor(st.node)}</b> · depth ${scene.nodes[st.node].depth}`;
+        else
+          actLine.innerHTML = `<span class="paren close">)</span> return → <b>${labelFor(st.node)}</b> · depth ${scene.nodes[st.node].depth}`;
+      }
+    }
+    const idx = Math.min(scene.len, Math.floor(p) + (p >= scene.len ? 0 : 0));
+    stNodes.textContent = scene.nodesAt[Math.min(scene.len, Math.max(0, Math.floor(p) + 1))];
+    stDepth.textContent = scene.depthAt[Math.min(scene.len, Math.max(0, Math.floor(p) + 1))];
+    stLeaves.textContent = scene.geo.leaves;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Loop
+  // ---------------------------------------------------------------------------
+  let p = 0, lastTs = 0, playing = true, speed = 1.6;
+
+  function frame(ts) {
+    if (!lastTs) lastTs = ts;
+    let dt = (ts - lastTs) / 1000; lastTs = ts;
+    if (dt > 0.1) dt = 0.1;
+
+    if (scene) {
+      if (reduceMotion) p = scene.len;
+      else if (playing) { p += dt * speed; if (p > scene.len) p = scene.len; }
+      const done = p >= scene.len;
+      const shimmer = (reduceMotion || !done) ? 1 : 1 + 0.05 * Math.sin(ts / 850);
+      statusText.textContent = done ? "Complete" : "Reading";
+      document.getElementById("statusDot").style.opacity = (playing || done || reduceMotion) ? "1" : "0.35";
+      updateHud(done ? scene.len - 0.0001 : p);
+      draw(Math.min(p, scene.len), shimmer);
+    }
+    requestAnimationFrame(frame);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Controls
+  // ---------------------------------------------------------------------------
+  const sizeR = document.getElementById("sizeR"), sizeV = document.getElementById("sizeV");
+  const speedR = document.getElementById("speedR"), speedV = document.getElementById("speedV");
+  const playBtn = document.getElementById("playBtn");
+  const custom = document.getElementById("customStr");
+
+  function load(str, fromPreset) {
+    const sc = buildScene(str);
+    if (!sc) return false;
+    scene = sc; fit(); p = 0; lastActive = -1; playing = true; playBtn.textContent = "❚❚";
+    if (fromPreset) custom.value = "";
+    return true;
+  }
+
+  document.getElementById("presetSeg").addEventListener("click", (e) => {
+    const b = e.target.closest("button"); if (!b) return;
+    for (const el of e.currentTarget.children) el.classList.toggle("active", el === b);
+    load(b.dataset.s, true);
+  });
+  custom.addEventListener("input", () => {
+    const v = custom.value.replace(/[^()]/g, "");
+    if (v !== custom.value) custom.value = v;
+    if (v.length === 0) { custom.classList.remove("bad"); return; }
+    const ok = build(v).ok;
+    custom.classList.toggle("bad", !ok);
+    if (ok) {
+      for (const el of document.getElementById("presetSeg").children) el.classList.remove("active");
+      load(v, false);
+    }
+  });
+  document.getElementById("randBtn").addEventListener("click", () => {
+    for (const el of document.getElementById("presetSeg").children) el.classList.remove("active");
+    custom.value = "";
+    load(randomDyck(+sizeR.value, seedCounter++ * 2654435761), false);
+  });
+  sizeR.addEventListener("input", () => { sizeV.textContent = sizeR.value; });
+  speedR.addEventListener("input", () => { speed = +speedR.value; speedV.textContent = speed.toFixed(1); });
+  playBtn.addEventListener("click", () => { playing = !playing; playBtn.textContent = playing ? "❚❚" : "▶"; });
+  document.getElementById("replayBtn").addEventListener("click", () => { p = 0; lastActive = -1; playing = true; playBtn.textContent = "❚❚"; });
+
+  const applyTheme = () => { pal = PAL[themeName()]; };
+  matchMedia("(prefers-color-scheme: dark)").addEventListener("change", applyTheme);
+  new MutationObserver(applyTheme).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+  window.addEventListener("resize", fit);
+
+  load("(()())(())", true);
+  if (reduceMotion) { playBtn.textContent = "▶"; playing = false; }
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
