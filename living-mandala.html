@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Living Mandala</title>
-<meta name="description" content="Trees drawn by real monotone-drawing algorithms (Angelini BFS, Oikonomou-Symvonis), folded into kaleidoscopic symmetry and set breathing, growing and morphing in 3D space.">
+<meta name="description" content="Trees drawn by real monotone-drawing algorithms (Angelini BFS, Oikonomou-Symvonis), folded into kaleidoscopic symmetry — growing, morphing and living through seasons in 3D space.">
 <meta name="author" content="Leandros Evangelidakis">
 <meta name="theme-color" content="#05070f">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='92'>%F0%9F%AA%B7</text></svg>">
@@ -108,7 +108,8 @@
   <h1>Living Mandala</h1>
   <p class="dek">Every petal is an <b>untouched monotone drawing</b> of a tree —
     Angelini's BFS or the Oikonomou&ndash;Symvonis 1-quadrant algorithm — folded
-    into symmetry, raised into a dome, breathing by depth.
+    into symmetry, raised into a dome, breathing by depth. Toggle <b>Ring</b> to
+    inscribe its parenthesis genome on the rim.
     <b>Drag</b> to orbit · <b>scroll</b> to zoom.</p>
 </div>
 
@@ -181,6 +182,7 @@
   <div class="group">
     <button class="icon-btn" id="soundBtn" title="Sound: leaf chimes + core drone">♪</button>
     <button class="icon-btn" id="replayBtn" title="Replay genesis bloom">↻</button>
+    <button id="ringBtn" title="Genome ring: the tree's parenthesis string">Ring</button>
     <button id="trailsBtn" title="Light trails">Trails</button>
     <button id="driftBtn" title="Cinematic camera drift">Drift</button>
     <button id="posterBtn" title="Save a 4K poster PNG">Poster</button>
@@ -276,12 +278,25 @@ function relabelDFS(tree) {
   return { parent, children, n: tree.n };
 }
 // First m nodes of a DFS-preorder tree always form a valid tree — the
-// evolution mode grows a tree by laying out successive prefixes.
+// evolution mode grows (and, in winter, prunes) a tree by laying out prefixes.
 function prefixTree(tree, m) {
   const parent = tree.parent.slice(0, m);
   const children = Array.from({ length: m }, () => []);
   for (let i = 1; i < m; i++) children[parent[i]].push(i);
   return { parent, children, n: m };
+}
+// The tree's "genome": its balanced-parenthesis string (the bijection the
+// thesis is built on), plus which node owns each glyph.
+function treeToParen(tree) {
+  const chars = [], owner = [];
+  (function rec(u) {
+    for (const c of tree.children[u]) {
+      chars.push("("); owner.push(c);
+      rec(c);
+      chars.push(")"); owner.push(c);
+    }
+  })(0);
+  return { s: chars.join(""), owner };
 }
 /* Oikonomou & Symvonis one-quadrant algorithm — faithful port of
    Oik_Symv_1Q.oik_symv_1q (root wedge [0, pi/2], subtree-proportional wedges,
@@ -360,8 +375,15 @@ function rampColor(t, stops) {
   const F = 3.4;             // perspective focal length (r is normalized to ~1)
   const RING_DELAY = 0.45;   // genesis: seconds between depth rings
   const RING_GROW = 0.6;     // genesis: seconds for one ring's edges to extend
-  const EVO_STEP = 0.5;      // evolution: seconds per node birth
-  const EVO_DWELL = 5;       // evolution: seconds to admire the finished organism
+  const EVO_STEP = 0.5;      // spring: seconds per node birth
+  const SUMMER_DUR = 6;      // seconds of full bloom
+  const AUTUMN_DUR = 7;      // seconds of turning colors and falling leaves
+  const WINTER_STEP = 0.26;  // winter: seconds per node absorbed
+
+  // Seasons: autumn color ramp (root-side gold -> leaf-side crimson) + ember core
+  const AUTUMN_STOPS = [[48, 92, 58], [30, 95, 56], [15, 92, 54], [355, 85, 55]];
+  const EMBER_CORE = [25, 90, 60];
+  let seasonMix = 0, winterFade = 0, curStops = PALETTES.aurora.stops;
 
   // ===== scene ==============================================================
   // scene.posA / posB hold the *normalized* first-quadrant layouts of the full
@@ -390,18 +412,21 @@ function rampColor(t, stops) {
     const dep = new Array(tree.n).fill(0);
     for (let i = 1; i < tree.n; i++) dep[i] = dep[tree.parent[i]] + 1;
     const maxD = Math.max(1, ...dep);
+    const leaves = [];
+    for (let i = 0; i < tree.n; i++) if (!tree.children[i].length) leaves.push(i);
     const L = layoutsOf(tree);
     return {
-      tree, n: tree.n, dep, maxD,
+      tree, n: tree.n, dep, maxD, leaves,
       posA: L.A, posB: L.B, gridA: L.gridA, gridB: L.gridB,
+      genome: treeToParen(tree),
       N: opts.petals,
-      bloomEnd: (maxD - 1) * RING_DELAY + RING_GROW,
     };
   }
 
-  // ===== evolution ==========================================================
-  // Grows the tree one node at a time; each keyframe is the REAL algorithm
-  // output for the current prefix, and the mandala reflows between keyframes.
+  // ===== evolution + seasons ================================================
+  // Spring grows the tree one node at a time; each keyframe is the REAL
+  // algorithm output for the current prefix. Winter is spring in reverse —
+  // every pruning step is still a valid monotone drawing.
   let evo = null;
   function evoKeyframe(m) {
     const L = layoutsOf(prefixTree(scene.tree, m));
@@ -410,21 +435,49 @@ function rampColor(t, stops) {
   function initEvo() {
     if (reduceMotion) {
       const full = { A: scene.posA, B: scene.posB, gridA: scene.gridA, gridB: scene.gridB };
-      evo = { mPrev: scene.n, mNext: scene.n, prev: full, next: full, t: 1, dwell: 0, done: true };
+      evo = { season: "summer", mPrev: scene.n, mNext: scene.n, prev: full, next: full, t: 1, age: 0 };
       return;
     }
     const first = evoKeyframe(1);
-    evo = { mPrev: 1, mNext: 2, prev: first, next: evoKeyframe(2), t: 0, dwell: 0, done: false };
+    evo = { season: "spring", mPrev: 1, mNext: 2, prev: first, next: evoKeyframe(2), t: 0, age: 0 };
   }
   function evoAdvance() {
     evo.mPrev = evo.mNext;
     evo.prev = evo.next;
     evo.t = 0;
-    if (evo.mNext >= scene.n) { evo.done = true; return; }
+    if (evo.mNext >= scene.n) {
+      evo.season = "summer"; evo.age = 0; evo.t = 1;
+      refreshReadout();
+      return;
+    }
     evo.mNext += 1;
     evo.next = evoKeyframe(evo.mNext);
-    const d = scene.dep[evo.mNext - 1];
-    chime(d, 0, true);
+    chime(scene.dep[evo.mNext - 1], 0, "birth");
+    refreshReadout();
+  }
+  function startWinter() {
+    evo.season = "winter"; evo.age = 0;
+    evo.mNext = scene.n; evo.mPrev = scene.n - 1;
+    evo.next = { A: scene.posA, B: scene.posB, gridA: scene.gridA, gridB: scene.gridB };
+    evo.prev = evoKeyframe(evo.mPrev);
+    evo.t = 1;
+    retuneDrone();
+    refreshReadout();
+  }
+  function winterStep(sdt) {
+    evo.t -= sdt / WINTER_STEP;
+    if (evo.t > 0) return;
+    evo.mNext = evo.mPrev;
+    chime(scene.dep[evo.mNext] || 1, 0, "fall");
+    if (evo.mNext <= 1) {                        // the organism returns to the seed
+      snowSeed = (snowSeed * 1664525 + 1013904223) >>> 0;
+      rebuild(true);
+      return;
+    }
+    evo.next = evo.prev;
+    evo.mPrev = evo.mNext - 1;
+    evo.prev = evoKeyframe(evo.mPrev);
+    evo.t = 1;
     refreshReadout();
   }
 
@@ -471,7 +524,7 @@ function rampColor(t, stops) {
   let anim = 2.5;                     // breath/motes phase clock
   let birth = 0;                      // genesis clock (seconds since regrow)
   let speed = 1, dome = 0.45;
-  let trails = false, cinematic = false;
+  let trails = false, cinematic = false, ringOn = false;
   let am = 0, amTarget = 0;           // metamorphosis: 0 = Angelini, 1 = Oik-Symv
 
   // per-frame scratch: blended node positions of the currently live prefix
@@ -501,6 +554,33 @@ function rampColor(t, stops) {
       curY[i] = ay + (by - ay) * am;
     }
   }
+  // How present node i is right now (genesis ramp / evolution birth / winter fade)
+  function revealFrac(i) {
+    if (i <= 0) return 1;
+    if (evo) {
+      if (i < evo.mPrev) return 1;
+      if (i < evo.mNext) return easeIO(evo.t);
+      return 0;
+    }
+    return easeOut((birth - (scene.dep[i] - 1) * RING_DELAY) / RING_GROW);
+  }
+
+  // ===== season-blended colors =============================================
+  function blendStops() {
+    if (seasonMix <= 0.001 && winterFade <= 0.001) { curStops = pal.stops; return; }
+    curStops = pal.stops.map((a, i) => {
+      const b = AUTUMN_STOPS[i];
+      let dh = b[0] - a[0];
+      if (dh > 180) dh -= 360;
+      if (dh < -180) dh += 360;
+      return [
+        a[0] + dh * seasonMix,
+        (a[1] + (b[1] - a[1]) * seasonMix) * (1 - 0.4 * winterFade),
+        (a[2] + (b[2] - a[2]) * seasonMix) * (1 - 0.16 * winterFade),
+      ];
+    });
+  }
+  const curColor = (d) => rampColor(d / scene.maxD, curStops);
 
   // ===== motes: energy flowing outward from the root ========================
   const MOTES = 120;
@@ -536,17 +616,17 @@ function rampColor(t, stops) {
       } else {
         if (mo.lx !== null) {
           burst(mo.lx, mo.ly, scene.dep[node]);
-          chime(scene.dep[node], mo.lx, false);
+          chime(scene.dep[node], mo.lx, "leaf");
         }
         spawnMote(mo);
       }
     }
   }
 
-  // ===== leaf sparks (screen-space, short-lived) ============================
-  let sparks = [];
+  // ===== leaf sparks + autumn falling leaves (screen-space) =================
+  let sparks = [], leaves = [], leafBudget = 0;
   function burst(x, y, d) {
-    const [h] = rampColor(d / scene.maxD, pal.stops);
+    const [h] = curColor(d);
     const count = 6 + (Math.random() * 4) | 0;
     for (let i = 0; i < count; i++) {
       const a = Math.random() * TAU, v = 24 + Math.random() * 60;
@@ -554,6 +634,16 @@ function rampColor(t, stops) {
         life: 0.5 + Math.random() * 0.3, life0: 0.8, h });
     }
     if (sparks.length > 240) sparks.splice(0, sparks.length - 240);
+  }
+  function dropLeaf(x, y, d) {
+    const [h, , l] = curColor(d);
+    leaves.push({
+      x, y, vx: (Math.random() - 0.5) * 30, vy: 12 + Math.random() * 18,
+      rot: Math.random() * TAU, vr: (Math.random() - 0.5) * 3,
+      size: 2.4 + Math.random() * 2.2, h, l: Math.min(70, l + 8),
+      life: 3.2 + Math.random() * 1.4, life0: 4.2, phase: Math.random() * TAU,
+    });
+    if (leaves.length > 90) leaves.splice(0, leaves.length - 90);
   }
 
   // ===== soundscape (fully synthesized, off by default) =====================
@@ -574,36 +664,43 @@ function rampColor(t, stops) {
   }
   function retuneDrone() {
     if (!audio) return;
-    audio.o1.frequency.setTargetAtTime(pal.drone, audio.ac.currentTime, 0.4);
-    audio.o2.frequency.setTargetAtTime(pal.drone * 1.007, audio.ac.currentTime, 0.4);
+    // winter drops the drone a fifth — the organism's voice lowers as it fades
+    const f = pal.drone * (evo && evo.season === "winter" ? 2 / 3 : 1);
+    audio.o1.frequency.setTargetAtTime(f, audio.ac.currentTime, 0.6);
+    audio.o2.frequency.setTargetAtTime(f * 1.007, audio.ac.currentTime, 0.6);
   }
   const PENTA = [0, 3, 5, 7, 10];   // minor pentatonic, in semitones
-  function chime(depth, screenX, isBirth) {
+  const CHIME = {
+    leaf:  { gain: 0.09, decay: 1.4, wave: "sine",     shift: 0 },
+    birth: { gain: 0.05, decay: 0.7, wave: "triangle", shift: 2 },
+    fall:  { gain: 0.04, decay: 1.0, wave: "sine",     shift: -5 },
+  };
+  function chime(depth, screenX, kind) {
     if (!soundOn || !audio) return;
+    const cfg = CHIME[kind];
     const now = performance.now();
     while (chimeTimes.length && now - chimeTimes[0] > 500) chimeTimes.shift();
     if (chimeTimes.length >= 6) return;
     chimeTimes.push(now);
     const ac = audio.ac, t0 = ac.currentTime;
-    const idx = Math.max(0, scene.maxD - depth + (isBirth ? 2 : 0));
-    let f = 220 * Math.pow(2, Math.floor(idx / 5)) * Math.pow(2, PENTA[idx % 5] / 12);
-    f = Math.min(f, 1900);
+    const idx = Math.max(0, scene.maxD - depth + cfg.shift + 4) ;
+    let f = 110 * Math.pow(2, Math.floor(idx / 5)) * Math.pow(2, PENTA[idx % 5] / 12);
+    f = Math.min(Math.max(f, 80), 1900);
     const g = ac.createGain();
     g.gain.setValueAtTime(0.0001, t0);
-    g.gain.exponentialRampToValueAtTime(isBirth ? 0.05 : 0.09, t0 + 0.012);
-    g.gain.exponentialRampToValueAtTime(0.0001, t0 + (isBirth ? 0.7 : 1.4));
-    const o = ac.createOscillator(); o.type = isBirth ? "triangle" : "sine"; o.frequency.value = f;
+    g.gain.exponentialRampToValueAtTime(cfg.gain, t0 + 0.012);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + cfg.decay);
+    const o = ac.createOscillator(); o.type = cfg.wave; o.frequency.value = f;
     const o5 = ac.createOscillator(); o5.type = "sine"; o5.frequency.value = f * 1.5;
     const g5 = ac.createGain(); g5.gain.value = 0.25;
-    let out = g;
     if (ac.createStereoPanner && screenX) {
       const pan = ac.createStereoPanner();
       pan.pan.value = Math.max(-1, Math.min(1, (screenX / W) * 2 - 1)) * 0.7;
       g.connect(pan); pan.connect(audio.master);
     } else { g.connect(audio.master); }
-    o.connect(out); o5.connect(g5); g5.connect(out);
+    o.connect(g); o5.connect(g5); g5.connect(g);
     o.start(t0); o5.start(t0);
-    o.stop(t0 + 1.6); o5.stop(t0 + 1.6);
+    o.stop(t0 + cfg.decay + 0.2); o5.stop(t0 + cfg.decay + 0.2);
   }
 
   // ===== projection (plane point + out-of-plane dome lift h) ================
@@ -648,7 +745,7 @@ function rampColor(t, stops) {
 
     // -- sample every live edge in polar space, bucket by (depth, band) ------
     const buckets = new Map(), dots = new Map();
-    const smp = [];   // per-edge polar samples {r, pc, dv, hv}
+    const smp = [];
     for (let i = 1; i < m; i++) {
       const par = scene.tree.parent[i];
       const rv = evo ? 1 : easeOut((birth - (scene.dep[i] - 1) * RING_DELAY) / RING_GROW);
@@ -693,7 +790,7 @@ function rampColor(t, stops) {
     // -- stroke: wide bloom pass, then bright core pass ----------------------
     for (const [key, path] of buckets) {
       const d = (key / 3) | 0, band = key % 3;
-      const [h, s, l] = rampColor(d / scene.maxD, pal.stops);
+      const [h, s, l] = curColor(d);
       const pulse = 0.7 + 0.3 * Math.sin(anim * 1.2 - d * 0.7 + 1.3);
       ctx.lineWidth = 7 * bandW[band] * zoom * PX;
       ctx.strokeStyle = "hsla(" + h + "," + s + "%," + l + "%," + (0.05 * bandA[band] * pulse * aScale) + ")";
@@ -704,7 +801,7 @@ function rampColor(t, stops) {
     }
     for (const [key, dp] of dots) {
       const d = (key / 3) | 0, band = key % 3;
-      const [h, s, l] = rampColor(d / scene.maxD, pal.stops);
+      const [h, s, l] = curColor(d);
       ctx.fillStyle = "hsla(" + h + "," + s + "%," + Math.min(92, l + 24) + "%," + (0.8 * bandA[band] * aScale) + ")";
       ctx.fill(dp);
     }
@@ -714,8 +811,11 @@ function rampColor(t, stops) {
     const ignite = easeOut(birth / RING_GROW);
     const flash = Math.exp(-birth * 2.2);
     const pulse = 1 + 0.1 * Math.sin(anim * 1.2 + 0.8);
-    const cr = 40 * zoom * pulse * (0.15 + 0.85 * ignite) * P1.p * PX;
-    const [ch, cs, cl] = pal.core;
+    const coreFade = 1 - 0.45 * winterFade;
+    const cr = 40 * zoom * pulse * (0.15 + 0.85 * ignite) * P1.p * PX * coreFade;
+    const ch = pal.core[0] + (EMBER_CORE[0] - pal.core[0]) * seasonMix;
+    const cs = pal.core[1] + (EMBER_CORE[1] - pal.core[1]) * seasonMix;
+    const cl = (pal.core[2] + (EMBER_CORE[2] - pal.core[2]) * seasonMix) * (1 - 0.1 * winterFade);
     const cg = ctx.createRadialGradient(P1.x, P1.y, 0, P1.x, P1.y, Math.max(1, cr));
     cg.addColorStop(0, "hsla(" + ch + "," + cs + "%," + Math.min(96, cl + 16 + 24 * flash) + "%,0.95)");
     cg.addColorStop(0.3, "hsla(" + ch + "," + cs + "%," + cl + "%," + (0.4 + 0.3 * flash) + ")");
@@ -736,7 +836,7 @@ function rampColor(t, stops) {
       const a0 = mirrored ? base + sec - pc : base + pc;
       const breath = 1 + 0.05 * Math.sin(anim * 1.2 - dv * 0.7);
       project(r * breath, a0 + theta, dome * hvOf(dv), P1);
-      const [h, s] = rampColor(scene.dep[child] / scene.maxD, pal.stops);
+      const [h, s] = curColor(scene.dep[child]);
       if (mo.lx !== null && PX === 1) {
         ctx.lineWidth = 1.1 * P1.p;
         ctx.strokeStyle = "hsla(" + h + "," + s + "%,80%," + (0.35 * P1.p) + ")";
@@ -747,8 +847,73 @@ function rampColor(t, stops) {
       if (PX === 1) { mo.lx = P1.x; mo.ly = P1.y; }
     }
 
-    // -- leaf sparks (screen-space; skipped in poster renders) ---------------
+    // -- genome ring: the parenthesis string orbiting the rim ----------------
+    if (ringOn && scene.genome.s.length) {
+      const g = scene.genome, len = g.s.length;
+      const ringR = 1.15;
+      const step = TAU / len;
+      const gs = Math.max(7, Math.min(16, (TAU * R * zoom * ringR / len) * 0.8)) * PX;
+      ctx.font = "italic " + gs + "px Palatino, Georgia, serif";
+      ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      const ra = -theta * 0.3;
+      for (let ci = 0; ci < len; ci++) {
+        const nodeId = g.owner[ci];
+        const rev = revealFrac(nodeId);
+        const ang = ra + ci * step;
+        project(ringR, ang, 0, P0);
+        project(ringR, ang + 0.012, 0, P1);
+        const rot = Math.atan2(P1.y - P0.y, P1.x - P0.x);
+        const depthFade = 0.35 + 0.65 * clamp01((P0.p - 0.85) / 0.5);
+        let a = (0.08 + 0.72 * rev) * depthFade;
+        let scale = 1;
+        if (evo && (evo.season === "spring" || evo.season === "winter") && nodeId === evo.mNext - 1) {
+          a = Math.min(1, a + 0.5);
+          scale = 1.6 - 0.6 * easeIO(evo.t);
+        }
+        const [h, s, l] = curColor(scene.dep[nodeId]);
+        ctx.fillStyle = "hsla(" + h + "," + (s * 0.8) + "%," + Math.min(88, l + 16) + "%," + a + ")";
+        ctx.save();
+        ctx.translate(P0.x, P0.y); ctx.rotate(rot);
+        if (scale !== 1) ctx.scale(scale, scale);
+        ctx.fillText(g.s[ci], 0, 0);
+        ctx.restore();
+      }
+    }
+
+    // -- autumn: spawn + draw falling leaves (screen-space) ------------------
     if (PX === 1) {
+      if (evo && (evo.season === "autumn" || evo.season === "winter") && leafBudget >= 1) {
+        while (leafBudget >= 1) {
+          leafBudget -= 1;
+          const leafId = scene.leaves[(Math.random() * scene.leaves.length) | 0];
+          if (leafId < m) {
+            const r = Math.hypot(curX[leafId], curY[leafId]);
+            const pc = Math.atan2(curY[leafId], curX[leafId]) * (2 / scene.N);
+            const copy = (Math.random() * N2) | 0;
+            const base = copy * sec;
+            const a0 = (copy & 1) === 1 ? base + sec - pc : base + pc;
+            project(r, a0 + theta, dome * hvOf(scene.dep[leafId]), P0);
+            dropLeaf(P0.x, P0.y, scene.dep[leafId]);
+          }
+        }
+      }
+      for (let i = leaves.length - 1; i >= 0; i--) {
+        const lf = leaves[i];
+        lf.life -= dt;
+        if (lf.life <= 0 || lf.y > H + 20) { leaves.splice(i, 1); continue; }
+        lf.vy = Math.min(90, lf.vy + 22 * dt);
+        lf.x += (lf.vx + 20 * Math.sin(anim * 2.2 + lf.phase)) * dt;
+        lf.y += lf.vy * dt;
+        lf.rot += lf.vr * dt;
+        const a = Math.min(1, lf.life / 1.2);
+        ctx.save();
+        ctx.translate(lf.x, lf.y); ctx.rotate(lf.rot);
+        ctx.fillStyle = "hsla(" + lf.h + ",85%," + lf.l + "%," + (0.7 * a) + ")";
+        ctx.beginPath(); ctx.ellipse(0, 0, lf.size * 1.6, lf.size * 0.7, 0, 0, TAU); ctx.fill();
+        ctx.restore();
+      }
+
+      // -- leaf sparks -------------------------------------------------------
       for (let i = sparks.length - 1; i >= 0; i--) {
         const sp = sparks[i];
         sp.life -= dt;
@@ -774,28 +939,38 @@ function rampColor(t, stops) {
     anim += sdt;
     birth += sdt;
     am += (amTarget - am) * Math.min(1, dt * 1.8);
-    theta += dt * 0.10 * speed;
+    theta += dt * 0.10 * speed * (cinematic ? 1.7 : 1);
     if (!dragging) { theta += spinVel; spinVel *= 0.95; }
     if (cinematic) {
-      tiltT = 0.88 + 0.32 * Math.sin(anim * 0.08);
-      zoomT = 1 + 0.14 * Math.sin(anim * 0.055 + 1.7);
+      tiltT = 0.86 + 0.32 * Math.sin(anim * 0.24);
+      zoomT = 1 + 0.13 * Math.sin(anim * 0.16 + 1.7);
     }
     tilt += (tiltT + 0.04 * Math.sin(anim * 0.13) - tilt) * 0.06;
     zoom += (zoomT - zoom) * 0.08;
 
+    // -- seasons state machine ----------------------------------------------
     if (evo && !reduceMotion) {
-      if (!evo.done) {
+      if (evo.season === "spring") {
         evo.t = Math.min(1, evo.t + sdt / EVO_STEP);
         if (evo.t >= 1) evoAdvance();
-      } else {
-        evo.t = 1;
-        evo.dwell += sdt;
-        if (evo.dwell > EVO_DWELL) {           // a new organism is born
-          snowSeed = (snowSeed * 1664525 + 1013904223) >>> 0;
-          rebuild(true);
-        }
+      } else if (evo.season === "summer") {
+        evo.t = 1; evo.age += sdt;
+        if (evo.age > SUMMER_DUR) { evo.season = "autumn"; evo.age = 0; refreshReadout(); }
+      } else if (evo.season === "autumn") {
+        evo.t = 1; evo.age += sdt;
+        leafBudget += 7 * sdt;
+        if (evo.age > AUTUMN_DUR) startWinter();
+      } else if (evo.season === "winter") {
+        leafBudget += 2.5 * sdt;
+        winterStep(sdt);
       }
     }
+    const smT = evo && (evo.season === "autumn" || evo.season === "winter") ? 1 : 0;
+    const wfT = evo && evo.season === "winter" ? 1 : 0;
+    seasonMix += (smT - seasonMix) * Math.min(1, dt * 0.7);
+    winterFade += (wfT - winterFade) * Math.min(1, dt * 0.7);
+    blendStops();
+
     if (audio && soundOn) {
       audio.droneGain.gain.value = 0.05 + 0.028 * Math.sin(anim * 1.2);
     }
@@ -837,6 +1012,7 @@ function rampColor(t, stops) {
   let mode = "crystal", algoName = "bfs", kVal = 3, depthVal = 4, petalVal = 6;
   let snowSize = 90, snowSeed = (Date.now() % 100000) * 2654435761 >>> 0;
   const ALGO_LABELS = { bfs: "Angelini · BFS-based", oik1q: "Oik-Symv · 1-Quadrant" };
+  const SEASON_LABELS = { spring: "spring · growing", summer: "summer · bloom", autumn: "autumn · turning", winter: "winter · dieback" };
   const depthR = document.getElementById("depthR"), depthV = document.getElementById("depthV");
   const snowR = document.getElementById("snowR"), snowV = document.getElementById("snowV");
   const petalR = document.getElementById("petalR"), petalV = document.getElementById("petalV");
@@ -845,12 +1021,14 @@ function rampColor(t, stops) {
 
   function refreshReadout() {
     document.getElementById("rAlgo").textContent = ALGO_LABELS[algoName];
-    document.getElementById("rNodes").textContent = evo && !evo.done
+    document.getElementById("rNodes").textContent = evo && evo.mNext < scene.n
       ? evo.mNext + " / " + scene.n : scene.n;
     const src = evo ? evo.next : scene;
     document.getElementById("rGrid").textContent = algoName === "oik1q" ? src.gridB : src.gridA;
     document.getElementById("rK").textContent =
-      mode === "crystal" ? "k = " + kVal : mode === "snow" ? "random" : "evolving";
+      mode === "crystal" ? "k = " + kVal
+      : mode === "snow" ? "random"
+      : (evo ? SEASON_LABELS[evo.season] : "evolving");
     document.getElementById("rSec").textContent = 2 * scene.N;
   }
   function rebuild(regrow) {
@@ -858,7 +1036,8 @@ function rampColor(t, stops) {
     evo = null;
     if (mode === "evolve") initEvo();
     resetMotes();
-    sparks = [];
+    sparks = []; leaves = []; leafBudget = 0;
+    retuneDrone();
     if (regrow) birth = reduceMotion ? 1e9 : 0;
     needClear = true;
     refreshReadout();
@@ -871,7 +1050,7 @@ function rampColor(t, stops) {
     pal = PALETTES[b.dataset.p];
     retuneDrone();
     buildStars(); needClear = true;
-    if (reduceMotion) render(0);
+    if (reduceMotion) { blendStops(); render(0); }
   });
   // Metamorphosis: switching algorithms MORPHS the live mandala between the
   // two geometries instead of rebuilding it.
@@ -926,18 +1105,24 @@ function rampColor(t, stops) {
     e.currentTarget.classList.toggle("active", soundOn);
     if (soundOn) {
       if (!audio) audio = initAudio();
-      if (audio) audio.ac.resume();
+      if (audio) { audio.ac.resume(); retuneDrone(); }
     } else if (audio) {
       audio.ac.suspend();
     }
   });
   document.getElementById("replayBtn").addEventListener("click", () => {
     birth = reduceMotion ? 1e9 : 0;
-    sparks = [];
-    if (mode === "evolve") { evo = null; initEvo(); }
+    sparks = []; leaves = []; leafBudget = 0;
+    if (mode === "evolve") { evo = null; initEvo(); retuneDrone(); }
     resetMotes();
     needClear = true;
     refreshReadout();
+    if (reduceMotion) render(0);
+  });
+  document.getElementById("ringBtn").addEventListener("click", (e) => {
+    ringOn = !ringOn;
+    e.currentTarget.classList.toggle("active", ringOn);
+    needClear = true;
     if (reduceMotion) render(0);
   });
   document.getElementById("trailsBtn").addEventListener("click", (e) => {
