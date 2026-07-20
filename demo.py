@@ -21,6 +21,8 @@ import networkx as nx
 
 import Angelini as ang
 import He_He as hh
+import Oik_Symv_1Q as o1q
+import Oik_Symv_Balanced as osb
 import Tree_Operations as tops
 
 # Maps an algorithm name to a callable(graph, **draw_kwargs) -> [area, maxx, maxy, pos].
@@ -28,6 +30,8 @@ ALGORITHMS = {
     "bfs": lambda g, **kw: ang.get_grid_area(g, algo="bfs", **kw),
     "dfs": lambda g, **kw: ang.get_grid_area(g, algo="dfs", **kw),
     "hehe": lambda g, **kw: hh.path_draw_algorithm(g, **kw),
+    "balanced": lambda g, **kw: osb.new_balanced_tree(g, **kw),
+    "oik1q": lambda g, **kw: o1q.oik_symv_1q(g, **kw),
 }
 
 
@@ -42,7 +46,7 @@ def run_algo(name: str, g: nx.Graph, show: bool, save: str | None) -> list:
     """Run one algorithm, print its grid size, and return its result list."""
     res = ALGORITHMS[name](g, display=show, save=save is not None, filename=save or f"{name}.png")
     area, maxx, maxy = res[0], res[1], res[2]
-    print(f"  {name:5s} -> grid {maxx} x {maxy}  (bounding area {area})")
+    print(f"  {name:8s} -> grid {maxx} x {maxy}  (bounding area {area})")
     if save is not None:
         print(f"          saved to {save}")
     return res

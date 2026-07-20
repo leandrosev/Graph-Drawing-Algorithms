@@ -1,0 +1,780 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Stern–Brocot Slope Bloom</title>
+<meta name="description" content="An animated instrument showing how Stern–Brocot mediant fractions become edge slopes, then a tree blooms onto them using the Angelini BFS monotone-drawing algorithm.">
+<meta name="author" content="Leandros Evangelidakis">
+<meta name="theme-color" content="#0a0e1c">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='92'>%F0%9F%8C%B8</text></svg>">
+<style>
+  :root {
+    /* Light — "ink plotter on drafting paper" */
+    --bg1: #e8ebf1;
+    --bg2: #dfe3ec;
+    --ink: #17213c;
+    --muted: #59637f;
+    --hair: rgba(23, 33, 60, 0.16);
+    --panel: rgba(240, 242, 247, 0.72);
+    --panel-brd: rgba(23, 33, 60, 0.14);
+    --seed: #b07d1f;
+    --focus: #2f6df0;
+    --scrim: rgba(232, 235, 241, 0.0);
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      /* Dark — "night instrument" */
+      --bg1: #0a0e1c;
+      --bg2: #0c1226;
+      --ink: #e9edf8;
+      --muted: #8a94b2;
+      --hair: rgba(180, 190, 220, 0.16);
+      --panel: rgba(17, 24, 46, 0.62);
+      --panel-brd: rgba(180, 190, 220, 0.16);
+      --seed: #f3c765;
+      --focus: #7aa2ff;
+      --scrim: rgba(10, 14, 28, 0.0);
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="light"] {
+    --bg1: #e8ebf1; --bg2: #dfe3ec; --ink: #17213c; --muted: #59637f;
+    --hair: rgba(23,33,60,0.16); --panel: rgba(240,242,247,0.72);
+    --panel-brd: rgba(23,33,60,0.14); --seed: #b07d1f; --focus: #2f6df0;
+    color-scheme: light;
+  }
+  :root[data-theme="dark"] {
+    --bg1: #0a0e1c; --bg2: #0c1226; --ink: #e9edf8; --muted: #8a94b2;
+    --hair: rgba(180,190,220,0.16); --panel: rgba(17,24,46,0.62);
+    --panel-brd: rgba(180,190,220,0.16); --seed: #f3c765; --focus: #7aa2ff;
+    color-scheme: dark;
+  }
+
+  * { box-sizing: border-box; }
+
+  :root {
+    --serif: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+    --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+  }
+
+  html, body { margin: 0; height: 100%; }
+  html { background: var(--bg1); }
+  body {
+    font-family: var(--sans);
+    color: var(--ink);
+    background:
+      radial-gradient(120% 90% at 78% 12%, var(--bg2), var(--bg1) 62%);
+    overflow: hidden;
+  }
+
+  .stage-wrap { position: fixed; inset: 0; }
+  #stage { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+
+  /* Masthead */
+  .masthead {
+    position: absolute; top: 0; left: 0;
+    max-width: min(46ch, 62vw);
+    padding: 26px 30px 40px;
+    pointer-events: none;
+    background: linear-gradient(160deg, var(--bg1) 0%, transparent 78%);
+  }
+  .eyebrow {
+    font-size: 11px; letter-spacing: 0.22em; text-transform: uppercase;
+    color: var(--muted); font-weight: 600; margin-bottom: 12px;
+  }
+  h1 {
+    font-family: var(--serif);
+    font-weight: 600; font-size: clamp(26px, 4.4vw, 46px);
+    line-height: 1.02; margin: 0 0 12px; letter-spacing: 0.01em;
+    text-wrap: balance;
+  }
+  .dek {
+    font-size: 14px; line-height: 1.55; color: var(--muted);
+    margin: 0; max-width: 40ch;
+  }
+
+  /* Shared panel look */
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--panel-brd);
+    border-radius: 12px;
+    -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+  }
+
+  /* Readout (top-right) */
+  .readout {
+    position: absolute; top: 22px; right: 22px;
+    width: 268px; padding: 14px 16px;
+    font-family: var(--mono); font-size: 12px; line-height: 1.5;
+  }
+  .readout .status {
+    display: flex; align-items: center; gap: 8px;
+    color: var(--muted); text-transform: uppercase; letter-spacing: 0.12em;
+    font-size: 10px; margin-bottom: 10px;
+  }
+  .dot {
+    width: 7px; height: 7px; border-radius: 50%;
+    background: var(--seed); box-shadow: 0 0 8px var(--seed);
+    flex: none;
+  }
+  .map-line { color: var(--ink); font-variant-numeric: tabular-nums; }
+  .map-line .frac { font-family: var(--serif); font-style: italic; font-size: 15px; }
+  .map-line .lvl { color: var(--muted); }
+  .map-hint { color: var(--muted); margin-top: 6px; font-size: 11px; }
+
+  /* Legend (below readout) */
+  .legend {
+    position: absolute; top: 152px; right: 22px;
+    width: 268px; padding: 12px 16px 14px;
+  }
+  .legend .cap {
+    font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase;
+    color: var(--muted); margin-bottom: 8px;
+  }
+  .swatches { display: flex; height: 10px; border-radius: 3px; overflow: hidden; }
+  .swatches > i { flex: 1; }
+  .legend .ends {
+    display: flex; justify-content: space-between;
+    font-size: 10px; color: var(--muted); margin-top: 6px;
+    font-family: var(--mono);
+  }
+
+  /* Controls (bottom center) */
+  .controls {
+    position: absolute; left: 50%; bottom: 22px; transform: translateX(-50%);
+    display: flex; align-items: center; gap: 18px;
+    padding: 12px 16px; flex-wrap: wrap; justify-content: center;
+    max-width: calc(100vw - 36px);
+  }
+  .group { display: flex; align-items: center; gap: 8px; }
+  .group + .group { border-left: 1px solid var(--hair); padding-left: 18px; }
+  .lbl {
+    font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase;
+    color: var(--muted); margin-right: 2px;
+  }
+  .seg { display: flex; gap: 4px; }
+  button {
+    font-family: var(--sans); font-size: 12.5px; color: var(--ink);
+    background: transparent; border: 1px solid var(--panel-brd);
+    padding: 6px 11px; border-radius: 8px; cursor: pointer;
+    transition: background 0.15s, border-color 0.15s, color 0.15s;
+  }
+  button:hover { border-color: var(--ink); }
+  button.active {
+    background: var(--seed); border-color: var(--seed);
+    color: #0a0e1c;
+  }
+  .icon-btn { padding: 6px 10px; min-width: 38px; }
+  input[type="range"] {
+    -webkit-appearance: none; appearance: none;
+    width: 96px; height: 4px; border-radius: 3px;
+    background: var(--hair); outline: none; cursor: pointer;
+  }
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none; width: 14px; height: 14px; border-radius: 50%;
+    background: var(--ink); border: 2px solid var(--bg1);
+  }
+  input[type="range"]::-moz-range-thumb {
+    width: 14px; height: 14px; border-radius: 50%;
+    background: var(--ink); border: 2px solid var(--bg1);
+  }
+  .val {
+    font-family: var(--mono); font-size: 11px; color: var(--muted);
+    min-width: 2.4ch; text-align: right; font-variant-numeric: tabular-nums;
+  }
+  :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+  .credit {
+    position: absolute; right: 24px; bottom: 84px;
+    font-size: 11px; color: var(--muted); text-align: right;
+    font-family: var(--mono); pointer-events: none;
+  }
+  .credit em { font-family: var(--serif); font-style: italic; color: var(--ink); }
+
+  @media (max-width: 720px) {
+    .readout, .legend { display: none; }
+    .masthead { max-width: 100vw; background: linear-gradient(180deg, var(--bg1) 30%, transparent); }
+    .credit { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<div class="stage-wrap">
+  <canvas id="stage"></canvas>
+
+  <div class="masthead">
+    <div class="eyebrow">Monotone drawings of trees · the internal process</div>
+    <h1>Stern–Brocot Slope&nbsp;Bloom</h1>
+    <p class="dek">Mediant fractions fan out as slopes. Then a tree blooms from the
+      origin — every edge snapping onto the exact ray its slope is drawn from.
+      Number theory becoming geometry.</p>
+  </div>
+
+  <div class="readout panel">
+    <div class="status"><span class="dot" id="statusDot"></span><span id="statusText">Generating fan</span></div>
+    <div class="map-line" id="mapLine">&nbsp;</div>
+    <div class="map-hint" id="mapHint">Hover a node to inspect its edge</div>
+  </div>
+
+  <div class="legend panel">
+    <div class="cap">Stern–Brocot depth → hue</div>
+    <div class="swatches" id="swatches"></div>
+    <div class="ends"><span>0 · shallow</span><span>deep</span></div>
+  </div>
+
+  <div class="controls panel">
+    <div class="group">
+      <span class="lbl">Tree</span>
+      <div class="seg" id="treeSeg">
+        <button data-tree="binary" class="active">Binary</button>
+        <button data-tree="ternary">Ternary</button>
+        <button data-tree="caterpillar">Caterpillar</button>
+        <button data-tree="random">Random</button>
+      </div>
+    </div>
+    <div class="group">
+      <span class="lbl">Size</span>
+      <input type="range" id="sizeR" min="2" max="6" step="1" value="4">
+      <span class="val" id="sizeV">4</span>
+    </div>
+    <div class="group">
+      <span class="lbl">Speed</span>
+      <input type="range" id="speedR" min="0.25" max="2.5" step="0.05" value="1">
+      <span class="val" id="speedV">1.0</span>
+    </div>
+    <div class="group">
+      <button class="icon-btn" id="playBtn" title="Play / pause">❚❚</button>
+      <button class="icon-btn" id="replayBtn" title="Replay bloom">↻</button>
+    </div>
+  </div>
+
+  <div class="credit">after Angelini et&nbsp;al. (BFS)<br><em>Monotone Drawings of Trees</em> · L. Evangelidakis</div>
+</div>
+
+<script>
+(() => {
+  "use strict";
+
+  // ---------------------------------------------------------------------------
+  // Theme-aware canvas palettes
+  // ---------------------------------------------------------------------------
+  const PAL = {
+    dark: {
+      axis: "rgba(180,190,220,0.16)", tick: "rgba(180,190,220,0.30)",
+      node: "#eef2ff", nodeStroke: "#0a0e1c", seed: "#f3c765",
+      label: "rgba(210,216,235,0.72)", glow: true,
+      fanL: 62, fanS: 84, usedL: 66,
+    },
+    light: {
+      axis: "rgba(30,40,72,0.22)", tick: "rgba(30,40,72,0.34)",
+      node: "#1b2444", nodeStroke: "#e8ebf1", seed: "#b07d1f",
+      label: "rgba(40,50,80,0.80)", glow: false,
+      fanL: 44, fanS: 66, usedL: 40,
+    },
+  };
+  const prefersDark = () => matchMedia("(prefers-color-scheme: dark)").matches;
+  function themeName() {
+    const t = document.documentElement.getAttribute("data-theme");
+    if (t === "dark" || t === "light") return t;
+    return prefersDark() ? "dark" : "light";
+  }
+  let pal = PAL[themeName()];
+
+  // hue keyed to Stern–Brocot depth (gold → coral → magenta → violet → cyan)
+  const hueFor = (d) => (44 + d * 33) % 360;
+  const rayColor = (d, used, a) => {
+    const l = used ? pal.usedL : pal.fanL;
+    const s = used ? pal.fanS + 8 : pal.fanS;
+    return `hsla(${hueFor(d)}, ${s}%, ${l}%, ${a})`;
+  };
+
+  const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  // ---------------------------------------------------------------------------
+  // Number theory: fusc / Stern–Brocot
+  // ---------------------------------------------------------------------------
+  // Sorted edge slopes for an n-node tree (Angelini BFS, OEIS A002487).
+  function fuscRatios(n) {
+    if (n <= 1) return [];
+    const v = new Array(2 * n).fill(0);
+    v[0] = 1;
+    for (let i = 0; i < n; i++) { v[2 * i] = v[i]; v[2 * i + 1] = v[i] + v[i + 1]; }
+    const arr = [];
+    for (let k = 1; k < n; k++) arr.push({ y: v[k + 1], x: v[k], ratio: v[k + 1] / v[k] });
+    arr.sort((a, b) => a.ratio - b.ratio);
+    return arr;
+  }
+
+  // Depth of fraction num/den (coprime) in the Stern–Brocot tree; 1/1 -> 0.
+  function sbDepth(num, den) {
+    let lo = [0, 1], hi = [1, 0], depth = 0, guard = 0;
+    while (guard++ < 400) {
+      const mn = lo[0] + hi[0], md = lo[1] + hi[1];
+      if (mn === num && md === den) return depth;
+      if (num * md < mn * den) hi = [mn, md]; else lo = [mn, md];
+      depth++;
+    }
+    return depth;
+  }
+
+  // All Stern–Brocot fractions up to maxLevel, each with its depth + direction.
+  function sbFan(maxLevel) {
+    const out = [];
+    (function rec(lo, hi, depth) {
+      if (depth > maxLevel) return;
+      const m = [lo[0] + hi[0], lo[1] + hi[1]];
+      out.push({ num: m[0], den: m[1], depth });        // value = num/den
+      rec(lo, m, depth + 1); rec(m, hi, depth + 1);
+    })([0, 1], [1, 0], 0);
+    return out;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Tree generators  ->  { parent[], children[][], n }
+  // ---------------------------------------------------------------------------
+  function fromParents(parent) {
+    const n = parent.length;
+    const children = Array.from({ length: n }, () => []);
+    for (let i = 1; i < n; i++) children[parent[i]].push(i);
+    return { parent, children, n };
+  }
+  function completeKary(k, depth, cap = 130) {
+    const parent = [-1]; let frontier = [0];
+    for (let d = 0; d < depth; d++) {
+      const next = [];
+      for (const p of frontier) for (let c = 0; c < k; c++) {
+        if (parent.length >= cap) break;
+        next.push(parent.length); parent.push(p);
+      }
+      frontier = next;
+      if (parent.length >= cap) break;
+    }
+    return fromParents(parent);
+  }
+  function caterpillar(spine, legs, cap = 130) {
+    const parent = [-1];
+    let prev = 0;
+    const spineIds = [0];
+    for (let i = 1; i < spine; i++) { parent.push(prev); prev = parent.length - 1; spineIds.push(prev); }
+    for (const s of spineIds) for (let l = 0; l < legs; l++) {
+      if (parent.length >= cap) break;
+      parent.push(s);
+    }
+    return fromParents(parent);
+  }
+  function randomTree(n, seed) {
+    let s = seed >>> 0;
+    const rnd = () => (s = (s * 1664525 + 1013904223) >>> 0) / 4294967296;
+    const parent = [-1];
+    for (let i = 1; i < n; i++) {
+      // bias toward recent nodes for organic, varied shapes
+      const j = Math.max(0, i - 1 - Math.floor(Math.pow(rnd(), 1.7) * i));
+      parent.push(j);
+    }
+    return fromParents(parent);
+  }
+
+  // ---------------------------------------------------------------------------
+  // The algorithm: assign a Stern–Brocot slope to every edge, then lay out.
+  // Faithful port of Angelini.get_grid_area (BFS variant).
+  // ---------------------------------------------------------------------------
+  function layout(tree) {
+    const { children, n } = tree;
+    const arr = fuscRatios(n);
+
+    const size = new Array(n).fill(1);
+    for (let i = n - 1; i >= 0; i--)
+      for (const c of children[i]) size[i] += size[c];
+
+    const Tu = new Array(n);         // slope run available to each node's subtree
+    Tu[0] = arr;
+    const coord = new Array(n);      // (y, x) offset relative to parent
+    coord[0] = { y: 0, x: 0 };
+    const edge = new Array(n);       // fraction on the edge into each node
+
+    for (let node = 0; node < n; node++) {
+      const ch = children[node];
+      if (ch.length === 0) continue;
+      const seq = Tu[node];
+      let acc = 0;
+      for (let j = 0; j < ch.length; j++) {
+        const child = ch[j];
+        const start = acc;                 // sum of previous subtree sizes
+        const end = acc + size[child];
+        acc = end;
+        const slice = seq.slice(start, end);
+        Tu[child] = slice;
+        const last = slice[slice.length - 1];
+        coord[child] = { y: last.y, x: last.x };
+        edge[child] = { num: last.y, den: last.x, ratio: last.ratio };
+      }
+    }
+
+    const pos = new Array(n);
+    pos[0] = { x: 0, y: 0 };
+    for (let i = 0; i < n; i++)
+      for (const c of children[i])
+        pos[c] = { x: pos[i].x + coord[c].x, y: pos[i].y + coord[c].y };
+
+    // depth (BFS) of each node, for staggered blooming
+    const bfsDepth = new Array(n).fill(0);
+    for (let i = 0; i < n; i++)
+      for (const c of children[i]) bfsDepth[c] = bfsDepth[i] + 1;
+
+    return { pos, edge, bfsDepth, n, children, parent: tree.parent, size };
+  }
+
+  // Node labels A, B, ... Z, AA, AB, ... (as in the algorithm)
+  function labelFor(i) {
+    const A = 65;
+    if (i < 26) return String.fromCharCode(A + i);
+    i -= 26;
+    return String.fromCharCode(A + (i / 26 | 0)) + String.fromCharCode(A + (i % 26));
+  }
+
+  // ---------------------------------------------------------------------------
+  // Scene assembly
+  // ---------------------------------------------------------------------------
+  let scene = null, seedCounter = 7;
+
+  function buildScene(kind, sizeVal) {
+    let tree;
+    if (kind === "binary") tree = completeKary(2, sizeVal + 1);
+    else if (kind === "ternary") tree = completeKary(3, sizeVal);
+    else if (kind === "caterpillar") tree = caterpillar(sizeVal * 2, 2);
+    else tree = randomTree(Math.min(120, sizeVal * 9 + 6), seedCounter++);
+
+    const L = layout(tree);
+
+    // rays: Stern–Brocot fan + any used slope not already in it
+    const usedMap = new Map();
+    let maxUsedDepth = 0;
+    for (let i = 1; i < L.n; i++) {
+      const e = L.edge[i];
+      const d = sbDepth(e.num, e.den);
+      maxUsedDepth = Math.max(maxUsedDepth, d);
+      usedMap.set(e.num + "/" + e.den, d);
+    }
+    const maxLevel = Math.max(3, Math.min(6, maxUsedDepth + 1));
+    const fan = sbFan(maxLevel);
+    const seen = new Set(fan.map((f) => f.num + "/" + f.den));
+    for (const [key, d] of usedMap) {
+      if (!seen.has(key)) {
+        const [num, den] = key.split("/").map(Number);
+        fan.push({ num, den, depth: d });
+      }
+    }
+    const rays = fan.map((f) => ({
+      num: f.num, den: f.den, depth: f.depth,
+      used: usedMap.has(f.num + "/" + f.den),
+      ang: Math.atan2(f.num, f.den),
+    }));
+    rays.sort((a, b) => a.depth - b.depth);
+
+    // bounds for fitting
+    let maxX = 1, maxY = 1;
+    for (const p of L.pos) { maxX = Math.max(maxX, p.x); maxY = Math.max(maxY, p.y); }
+
+    // timeline (seconds)
+    const fanDur = (maxLevel + 1) * 0.30 + 0.7;
+    const bloomStart = fanDur + 0.35;
+    let maxTreeDepth = 0;
+    for (const d of L.bfsDepth) maxTreeDepth = Math.max(maxTreeDepth, d);
+    const bloomEnd = bloomStart + maxTreeDepth * 0.34 + 0.9;
+
+    return {
+      kind, L, rays, maxLevel, maxX, maxY,
+      fanDur, bloomStart, bloomEnd, total: bloomEnd,
+      // per-node bloom start time
+      nodeStart: L.bfsDepth.map((d, i) => bloomStart + d * 0.30 + (i % 5) * 0.03),
+    };
+  }
+
+  // ---------------------------------------------------------------------------
+  // Canvas + fitting
+  // ---------------------------------------------------------------------------
+  const canvas = document.getElementById("stage");
+  const ctx = canvas.getContext("2d");
+  let W = 0, H = 0, dpr = 1;
+  let ox = 0, oy = 0, scale = 1;   // origin (screen) + units->px
+
+  function fit() {
+    dpr = Math.min(2, window.devicePixelRatio || 1);
+    W = canvas.clientWidth; H = canvas.clientHeight;
+    canvas.width = Math.round(W * dpr); canvas.height = Math.round(H * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const mL = 96, mR = 74, mT = Math.min(190, H * 0.32), mB = 96;
+    ox = mL; oy = H - mB;
+    if (scene) {
+      const sx = (W - mL - mR) / scene.maxX;
+      const sy = (H - mT - mB) / scene.maxY;
+      scale = Math.max(6, Math.min(sx, sy));
+    }
+  }
+  const sX = (x) => ox + x * scale;
+  const sY = (y) => oy - y * scale;
+
+  // ---------------------------------------------------------------------------
+  // Drawing
+  // ---------------------------------------------------------------------------
+  const easeOut = (t) => 1 - Math.pow(1 - Math.min(1, Math.max(0, t)), 3);
+  const clamp01 = (t) => Math.min(1, Math.max(0, t));
+
+  function draw(clock, shimmer) {
+    ctx.clearRect(0, 0, W, H);
+    if (!scene) return;
+    const S = scene;
+
+    // --- baseline axes + angle ticks (the instrument) ---
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = pal.axis;
+    ctx.beginPath();
+    ctx.moveTo(sX(0), sY(0)); ctx.lineTo(sX(0) + (W - ox - 40), sY(0));  // x-axis
+    ctx.moveTo(sX(0), sY(0)); ctx.lineTo(sX(0), sY(0) - (oy - 30));      // y-axis
+    ctx.stroke();
+
+    const tickR = Math.min(W - ox - 40, oy - 30);
+    ctx.strokeStyle = pal.tick;
+    for (let a = 0; a <= 90; a += 15) {
+      const r = tickR, rad = a * Math.PI / 180;
+      ctx.globalAlpha = 0.5;
+      ctx.beginPath();
+      ctx.moveTo(sX(0) + Math.cos(rad) * (r - 7), sY(0) - Math.sin(rad) * (r - 7));
+      ctx.lineTo(sX(0) + Math.cos(rad) * r, sY(0) - Math.sin(rad) * r);
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+
+    // --- Stern–Brocot fan ---
+    const reachR = Math.hypot(W - ox, oy) + 40;
+    for (const ray of S.rays) {
+      const rev = S.fanDur <= 0 ? 1 :
+        clamp01((clock - ray.depth * (S.fanDur / (S.maxLevel + 2))) / 0.6);
+      if (rev <= 0) continue;
+      const dx = Math.cos(ray.ang), dy = Math.sin(ray.ang);
+      const fade = 1 - ray.depth / (S.maxLevel + 2.5);
+      const hovered = ray === hoverRay;
+      let a = (ray.used ? 0.5 : 0.16) * fade * rev * shimmer;
+      if (hovered) a = Math.min(0.95, a + 0.5);
+      ctx.lineWidth = (ray.used ? 1.5 : 0.8) * (hovered ? 2.4 : 1);
+      ctx.strokeStyle = rayColor(ray.depth, ray.used, a);
+      if (pal.glow && (ray.used || hovered)) {
+        ctx.shadowBlur = hovered ? 14 : 7;
+        ctx.shadowColor = rayColor(ray.depth, true, 0.9);
+      }
+      ctx.beginPath();
+      ctx.moveTo(sX(0), sY(0));
+      ctx.lineTo(sX(0) + dx * reachR * rev, sY(0) - dy * reachR * rev);
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+    }
+
+    // --- engraved fraction labels for shallow rays ---
+    ctx.font = "italic 13px " + "Palatino, Georgia, serif";
+    ctx.fillStyle = pal.label;
+    for (const ray of S.rays) {
+      if (ray.depth > 2) continue;
+      const rev = S.fanDur <= 0 ? 1 :
+        clamp01((clock - ray.depth * (S.fanDur / (S.maxLevel + 2))) / 0.6);
+      if (rev < 0.9) continue;
+      const dx = Math.cos(ray.ang), dy = Math.sin(ray.ang);
+      const rr = tickR + 16;
+      ctx.textAlign = dx > 0.92 ? "left" : "center";
+      ctx.fillText(ray.num + "⁄" + ray.den,
+        sX(0) + dx * rr, sY(0) - dy * rr + 4);
+    }
+    ctx.textAlign = "left";
+
+    // --- the tree blooms ---
+    const L = S.L;
+    // edges first
+    for (let i = 1; i < L.n; i++) {
+      const st = S.nodeStart[i];
+      const p = easeOut((clock - st) / 0.7);
+      if (p <= 0) continue;
+      const par = L.parent[i];
+      const px = sX(L.pos[par].x), py = sY(L.pos[par].y);
+      const fx = sX(L.pos[i].x), fy = sY(L.pos[i].y);
+      const cx = px + (fx - px) * p, cy = py + (fy - py) * p;
+      const d = sbDepth(L.edge[i].num, L.edge[i].den);
+      const isHover = hoverNode === i;
+      ctx.lineWidth = isHover ? 3 : 1.7;
+      ctx.strokeStyle = rayColor(d, true, isHover ? 1 : 0.92 * shimmer);
+      if (pal.glow) { ctx.shadowBlur = isHover ? 12 : 6; ctx.shadowColor = rayColor(d, true, 0.9); }
+      ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(cx, cy); ctx.stroke();
+      ctx.shadowBlur = 0;
+    }
+    // nodes on top
+    for (let i = 0; i < L.n; i++) {
+      const st = i === 0 ? S.bloomStart - 0.2 : S.nodeStart[i];
+      const p = easeOut((clock - st) / 0.7);
+      if (p <= 0) continue;
+      const par = i === 0 ? 0 : L.parent[i];
+      const px = sX(L.pos[par].x), py = sY(L.pos[par].y);
+      const fx = sX(L.pos[i].x), fy = sY(L.pos[i].y);
+      const cx = px + (fx - px) * p, cy = py + (fy - py) * p;
+      const isRoot = i === 0;
+      const isHover = hoverNode === i;
+      const r = (isRoot ? 6.5 : 3.6) * (0.5 + 0.5 * p) * (isHover ? 1.5 : 1);
+      if (pal.glow) { ctx.shadowBlur = isRoot ? 16 : 8; ctx.shadowColor = isRoot ? pal.seed : pal.node; }
+      ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2);
+      ctx.fillStyle = isRoot ? pal.seed : pal.node;
+      ctx.fill();
+      ctx.shadowBlur = 0;
+      ctx.lineWidth = 1; ctx.strokeStyle = pal.nodeStroke;
+      ctx.stroke();
+      if (isHover && !isRoot) {
+        ctx.font = "12px ui-monospace, monospace";
+        ctx.fillStyle = pal.node;
+        ctx.fillText(labelFor(i), cx + 8, cy - 8);
+      }
+    }
+    // origin marker
+    ctx.fillStyle = pal.label;
+    ctx.font = "italic 12px Palatino, Georgia, serif";
+    ctx.fillText("O", sX(0) - 16, sY(0) + 16);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Hover: nearest node
+  // ---------------------------------------------------------------------------
+  let hoverNode = -1, hoverRay = null;
+  const mapLine = document.getElementById("mapLine");
+  const mapHint = document.getElementById("mapHint");
+
+  function setReadoutForEdge(i) {
+    if (i <= 0 || !scene) { mapLine.innerHTML = "&nbsp;"; mapHint.textContent = "Hover a node to inspect its edge"; hoverRay = null; return; }
+    const e = scene.L.edge[i];
+    const d = sbDepth(e.num, e.den);
+    mapLine.innerHTML =
+      `edge <b>${labelFor(scene.L.parent[i])}→${labelFor(i)}</b>` +
+      ` &nbsp;slope <span class="frac">${e.num}⁄${e.den}</span>`;
+    mapHint.innerHTML = `<span class="lvl">Stern–Brocot depth ${d}</span>`;
+    hoverRay = scene.rays.find((r) => r.num === e.num && r.den === e.den) || null;
+  }
+
+  canvas.addEventListener("mousemove", (ev) => {
+    if (!scene) return;
+    const rect = canvas.getBoundingClientRect();
+    const mx = ev.clientX - rect.left, my = ev.clientY - rect.top;
+    let best = -1, bestD = 15 * 15;
+    for (let i = 0; i < scene.L.n; i++) {
+      const dx = sX(scene.L.pos[i].x) - mx, dy = sY(scene.L.pos[i].y) - my;
+      const dd = dx * dx + dy * dy;
+      if (dd < bestD) { bestD = dd; best = i; }
+    }
+    if (best !== hoverNode) {
+      hoverNode = best;
+      canvas.style.cursor = best >= 0 ? "pointer" : "default";
+      if (best >= 0) setReadoutForEdge(best);
+      else if (!cycling) { setReadoutForEdge(-1); }
+    }
+  });
+  canvas.addEventListener("mouseleave", () => { hoverNode = -1; if (!cycling) setReadoutForEdge(-1); });
+
+  // ---------------------------------------------------------------------------
+  // Animation loop
+  // ---------------------------------------------------------------------------
+  let clock = 0, lastTs = 0, playing = true, speed = 1;
+  const statusText = document.getElementById("statusText");
+  const statusDot = document.getElementById("statusDot");
+
+  // idle: gently cycle through edges to reveal the mappings
+  let cycling = false, cycleI = 1, cycleAcc = 0;
+
+  function phaseName(c) {
+    if (!scene) return "…";
+    if (c < scene.fanDur) return "Generating Stern–Brocot fan";
+    if (c < scene.bloomEnd) return "Blooming the tree";
+    return "Monotone drawing complete";
+  }
+
+  function frame(ts) {
+    if (!lastTs) lastTs = ts;
+    let dt = (ts - lastTs) / 1000; lastTs = ts;
+    if (dt > 0.1) dt = 0.1;
+
+    if (playing && !reduceMotion) clock += dt * speed;
+    if (reduceMotion) clock = scene ? scene.total : 0;
+
+    const done = scene && clock >= scene.total;
+    const shimmer = (reduceMotion || !done) ? 1 : 1 + 0.06 * Math.sin(ts / 900);
+
+    // idle mapping cycle
+    if (done && hoverNode < 0 && scene && scene.L.n > 1) {
+      cycling = true;
+      cycleAcc += dt;
+      if (cycleAcc > 1.4) {
+        cycleAcc = 0;
+        cycleI = cycleI + 1; if (cycleI >= scene.L.n) cycleI = 1;
+        setReadoutForEdge(cycleI);
+      }
+    } else if (hoverNode >= 0) {
+      cycling = false;
+    }
+
+    statusText.textContent = phaseName(clock);
+    statusDot.style.opacity = (playing || done || reduceMotion) ? "1" : "0.35";
+
+    draw(clock, shimmer);
+    requestAnimationFrame(frame);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Controls
+  // ---------------------------------------------------------------------------
+  let treeKind = "binary", sizeVal = 4;
+  const sizeR = document.getElementById("sizeR"), sizeV = document.getElementById("sizeV");
+  const speedR = document.getElementById("speedR"), speedV = document.getElementById("speedV");
+  const playBtn = document.getElementById("playBtn");
+
+  function rebuild() {
+    scene = buildScene(treeKind, sizeVal);
+    fit();
+    clock = 0; cycleI = 1; cycleAcc = 0; cycling = false;
+    hoverNode = -1; setReadoutForEdge(-1);
+  }
+
+  document.getElementById("treeSeg").addEventListener("click", (e) => {
+    const b = e.target.closest("button"); if (!b) return;
+    for (const el of e.currentTarget.children) el.classList.toggle("active", el === b);
+    treeKind = b.dataset.tree; rebuild();
+  });
+  sizeR.addEventListener("input", () => { sizeVal = +sizeR.value; sizeV.textContent = sizeVal; rebuild(); });
+  speedR.addEventListener("input", () => { speed = +speedR.value; speedV.textContent = speed.toFixed(1); });
+  playBtn.addEventListener("click", () => {
+    playing = !playing; playBtn.textContent = playing ? "❚❚" : "▶";
+  });
+  document.getElementById("replayBtn").addEventListener("click", () => {
+    clock = 0; cycling = false; playing = true; playBtn.textContent = "❚❚";
+  });
+
+  // legend swatches
+  (function legend() {
+    const wrap = document.getElementById("swatches");
+    for (let d = 0; d <= 6; d++) {
+      const i = document.createElement("i");
+      i.style.background = `hsl(${hueFor(d)}, 78%, ${themeName() === "dark" ? 60 : 46}%)`;
+      wrap.appendChild(i);
+    }
+  })();
+
+  // theme changes
+  const applyTheme = () => { pal = PAL[themeName()]; };
+  matchMedia("(prefers-color-scheme: dark)").addEventListener("change", applyTheme);
+  new MutationObserver(applyTheme).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+
+  window.addEventListener("resize", fit);
+
+  // go
+  rebuild();
+  if (reduceMotion) { playBtn.textContent = "▶"; playing = false; }
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
