@@ -109,12 +109,10 @@
 <div class="vignette"></div>
 
 <div class="masthead ui-fade">
-  <div class="eyebrow">Real monotone drawings, kaleidoscoped</div>
+  <div class="eyebrow">Monotone drawings of trees, kaleidoscoped</div>
   <h1>Living Mandala</h1>
-  <p class="dek">Every petal is an <b>untouched monotone drawing</b> of a tree —
-    Angelini's BFS or the Oikonomou&ndash;Symvonis 1-quadrant algorithm — folded
-    into symmetry, raised into a dome, breathing by depth. Toggle <b>Ring</b> to
-    inscribe its parenthesis genome on the rim.
+  <p class="dek">Every petal is an <b>monotone drawing</b> of a tree, folded
+    into symmetry, raised into a dome, breathing by depth. 
     <b>Drag</b> to orbit · <b>scroll</b> to zoom.</p>
 </div>
 
@@ -176,8 +174,8 @@
   </div>
   <div class="group">
     <span class="lbl">Dome</span>
-    <input type="range" id="domeR" min="0" max="1" step="0.05" value="0.45" aria-label="dome height">
-    <span class="val" id="domeV">0.45</span>
+    <input type="range" id="domeR" min="0" max="1" step="0.05" value="0" aria-label="dome height">
+    <span class="val" id="domeV">0.00</span>
   </div>
   <div class="group">
     <span class="lbl">Speed</span>
@@ -527,10 +525,11 @@ function rampColor(t, stops) {
   }
 
   // camera + effect state
-  let theta = 0.6, tilt = 0.98, tiltT = 0.98, zoom = 1, zoomT = 1, spinVel = 0;
+  // start panoramic: nearly face-on, slightly zoomed out to frame the full disc
+  let theta = 0.6, tilt = 0.35, tiltT = 0.35, zoom = 0.9, zoomT = 0.9, spinVel = 0;
   let anim = 2.5;                     // breath/motes phase clock
   let birth = 0;                      // genesis clock (seconds since regrow)
-  let speed = 1, dome = 0.45;
+  let speed = 1, dome = 0;
   let trails = false, cinematic = false, ringOn = false;
   let paused = false, spiral = false;
   const GOLD = Math.PI * (3 - Math.sqrt(5));   // golden angle
