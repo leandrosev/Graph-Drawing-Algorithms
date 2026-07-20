@@ -53,6 +53,11 @@
   .panel { background: var(--panel); border: 1px solid var(--panel-brd); border-radius: 12px;
     -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); }
 
+  /* chrome fades away after a few idle seconds; any input brings it back */
+  .ui-fade { transition: opacity 0.5s; }
+  body.idle .ui-fade { opacity: 0; pointer-events: none; }
+  body.idle #stage { cursor: none; }
+
   .readout { position: fixed; top: 22px; right: 22px; width: 236px; padding: 14px 16px;
     font-family: var(--mono); font-size: 12px; line-height: 1.6; }
   .readout .cap { font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase;
@@ -103,7 +108,7 @@
 <canvas id="stage"></canvas>
 <div class="vignette"></div>
 
-<div class="masthead">
+<div class="masthead ui-fade">
   <div class="eyebrow">Real monotone drawings, kaleidoscoped</div>
   <h1>Living Mandala</h1>
   <p class="dek">Every petal is an <b>untouched monotone drawing</b> of a tree —
@@ -113,15 +118,15 @@
     <b>Drag</b> to orbit · <b>scroll</b> to zoom.</p>
 </div>
 
-<div class="readout panel">
+<div class="readout panel ui-fade">
   <div class="cap"><span class="dot"></span><span id="rAlgo">Angelini · BFS-based</span></div>
   <div class="kv"><span>nodes</span><span id="rNodes">–</span></div>
   <div class="kv"><span>grid</span><span id="rGrid">–</span></div>
   <div class="kv"><span>tree</span><span id="rK">–</span></div>
-  <div class="kv"><span>mirror sectors</span><span id="rSec">–</span></div>
+  <div class="kv"><span>sectors</span><span id="rSec">–</span></div>
 </div>
 
-<div class="controls panel">
+<div class="controls panel ui-fade">
   <div class="group">
     <span class="lbl">Palette</span>
     <div class="seg" id="palSeg">
@@ -180,9 +185,11 @@
     <span class="val" id="speedV">1.0</span>
   </div>
   <div class="group">
+    <button class="icon-btn" id="pauseBtn" title="Pause / resume">⏸</button>
     <button class="icon-btn" id="soundBtn" title="Sound: leaf chimes + core drone">♪</button>
     <button class="icon-btn" id="replayBtn" title="Replay genesis bloom">↻</button>
     <button id="ringBtn" title="Genome ring: the tree's parenthesis string">Ring</button>
+    <button id="spiralBtn" title="Phyllotaxis fold: golden-angle spiral copies">Spiral</button>
     <button id="trailsBtn" title="Light trails">Trails</button>
     <button id="driftBtn" title="Cinematic camera drift">Drift</button>
     <button id="posterBtn" title="Save a 4K poster PNG">Poster</button>
@@ -190,7 +197,7 @@
   </div>
 </div>
 
-<div class="credit">Angelini et&nbsp;al. · Oikonomou &amp; Symvonis<br><em>Monotone Drawings of Trees</em> · L. Evangelidakis</div>
+<div class="credit ui-fade">Angelini et&nbsp;al. · Oikonomou &amp; Symvonis<br><em>Monotone Drawings of Trees</em> · L. Evangelidakis</div>
 
 <script>
 /* ---------------------------------------------------------------------------
@@ -525,6 +532,10 @@ function rampColor(t, stops) {
   let birth = 0;                      // genesis clock (seconds since regrow)
   let speed = 1, dome = 0.45;
   let trails = false, cinematic = false, ringOn = false;
+  let paused = false, spiral = false;
+  const GOLD = Math.PI * (3 - Math.sqrt(5));   // golden angle
+  // mirror fold: 2N alternating mirrored sectors; spiral fold: golden-angle fronds
+  function foldCopies() { return spiral ? petalVal * 3 : 2 * scene.N; }
   let am = 0, amTarget = 0;           // metamorphosis: 0 = Angelini, 1 = Oik-Symv
 
   // per-frame scratch: blended node positions of the currently live prefix
@@ -593,7 +604,7 @@ function rampColor(t, stops) {
     const roots = liveKids(0);
     if (!roots.length) { mo.e = -1; return; }
     mo.e = roots[(Math.random() * roots.length) | 0] - 1;   // edge idx = child - 1
-    mo.copy = (Math.random() * 2 * scene.N) | 0;
+    mo.copy = (Math.random() * foldCopies()) | 0;
     mo.t = Math.random() * 0.25;
     mo.sp = 0.45 + Math.random() * 0.75;
     mo.lx = null; mo.ly = null;
@@ -736,7 +747,8 @@ function rampColor(t, stops) {
     if (!scene) return;
     computePositions();
     cosT = Math.cos(tilt); sinT = Math.sin(tilt);
-    const N2 = 2 * scene.N, sec = Math.PI / scene.N;
+    const nCopies = foldCopies(), sec = Math.PI / scene.N;
+    const angSc = spiral ? ((TAU / nCopies) * 1.35) / (Math.PI / 2) : 2 / scene.N;
     const aScale = trails ? 0.6 : 1;
     const m = liveCount();
 
@@ -758,17 +770,19 @@ function rampColor(t, stops) {
         if (f >= rv) { f = rv; tip = true; }
         const x = x0 + (x1 - x0) * f, y = y0 + (y1 - y0) * f;
         const dv = d0 + (d1 - d0) * f;
-        smp.push({ r: Math.hypot(x, y), pc: Math.atan2(y, x) * (2 / scene.N), dv, hv: hvOf(dv) });
+        smp.push({ r: Math.hypot(x, y), pc: Math.atan2(y, x) * angSc, dv, hv: hvOf(dv) });
         if (tip) break;
       }
       const dKey = scene.dep[i];
-      for (let s = 0; s < N2; s++) {
-        const base = s * sec, mirrored = (s & 1) === 1;
+      for (let s = 0; s < nCopies; s++) {
+        const fr = spiral ? 0.55 + 0.45 * ((s + 1) / nCopies) : 1;
+        const base = spiral ? s * GOLD : s * sec;
+        const mirrored = !spiral && (s & 1) === 1;
         let hx = 0, hy = 0, hp = 1, has = false;
         for (const sp of smp) {
           const a0 = mirrored ? base + sec - sp.pc : base + sp.pc;
           const breath = 1 + 0.05 * Math.sin(anim * 1.2 - sp.dv * 0.7);
-          project(sp.r * breath, a0 + theta, dome * sp.hv, P0);
+          project(sp.r * breath * fr, a0 + theta, dome * sp.hv * fr, P0);
           if (has) {
             const key = dKey * 3 + bandOf((hp + P0.p) / 2);
             let path = buckets.get(key);
@@ -831,11 +845,13 @@ function rampColor(t, stops) {
       const x = curX[par] + (curX[child] - curX[par]) * mo.t;
       const y = curY[par] + (curY[child] - curY[par]) * mo.t;
       const dv = scene.dep[par] + (scene.dep[child] - scene.dep[par]) * mo.t;
-      const r = Math.hypot(x, y), pc = Math.atan2(y, x) * (2 / scene.N);
-      const base = mo.copy * sec, mirrored = (mo.copy & 1) === 1;
+      const r = Math.hypot(x, y), pc = Math.atan2(y, x) * angSc;
+      const fr = spiral ? 0.55 + 0.45 * ((mo.copy + 1) / nCopies) : 1;
+      const base = spiral ? mo.copy * GOLD : mo.copy * sec;
+      const mirrored = !spiral && (mo.copy & 1) === 1;
       const a0 = mirrored ? base + sec - pc : base + pc;
       const breath = 1 + 0.05 * Math.sin(anim * 1.2 - dv * 0.7);
-      project(r * breath, a0 + theta, dome * hvOf(dv), P1);
+      project(r * breath * fr, a0 + theta, dome * hvOf(dv) * fr, P1);
       const [h, s] = curColor(scene.dep[child]);
       if (mo.lx !== null && PX === 1) {
         ctx.lineWidth = 1.1 * P1.p;
@@ -888,11 +904,12 @@ function rampColor(t, stops) {
           const leafId = scene.leaves[(Math.random() * scene.leaves.length) | 0];
           if (leafId < m) {
             const r = Math.hypot(curX[leafId], curY[leafId]);
-            const pc = Math.atan2(curY[leafId], curX[leafId]) * (2 / scene.N);
-            const copy = (Math.random() * N2) | 0;
-            const base = copy * sec;
-            const a0 = (copy & 1) === 1 ? base + sec - pc : base + pc;
-            project(r, a0 + theta, dome * hvOf(scene.dep[leafId]), P0);
+            const pc = Math.atan2(curY[leafId], curX[leafId]) * angSc;
+            const copy = (Math.random() * nCopies) | 0;
+            const fr = spiral ? 0.55 + 0.45 * ((copy + 1) / nCopies) : 1;
+            const base = spiral ? copy * GOLD : copy * sec;
+            const a0 = !spiral && (copy & 1) === 1 ? base + sec - pc : base + pc;
+            project(r * fr, a0 + theta, dome * hvOf(scene.dep[leafId]) * fr, P0);
             dropLeaf(P0.x, P0.y, scene.dep[leafId]);
           }
         }
@@ -934,12 +951,13 @@ function rampColor(t, stops) {
     if (!lastTs) lastTs = ts;
     let dt = (ts - lastTs) / 1000; lastTs = ts;
     if (dt > 0.1) dt = 0.1;
-    const sdt = dt * speed;
+    const pdt = paused ? 0 : dt;
+    const sdt = pdt * speed;
 
     anim += sdt;
     birth += sdt;
-    am += (amTarget - am) * Math.min(1, dt * 1.8);
-    theta += dt * 0.10 * speed * (cinematic ? 1.7 : 1);
+    am += (amTarget - am) * Math.min(1, pdt * 1.8);
+    theta += pdt * 0.10 * speed * (cinematic ? 1.7 : 1);
     if (!dragging) { theta += spinVel; spinVel *= 0.95; }
     if (cinematic) {
       tiltT = 0.86 + 0.32 * Math.sin(anim * 0.24);
@@ -976,7 +994,11 @@ function rampColor(t, stops) {
     }
     for (const mo of motes) stepMote(mo, sdt);
 
-    render(dt);
+    if (performance.now() - lastActive > 3500 && !controlsEl.matches(":hover")) {
+      document.body.classList.add("idle");
+    }
+
+    render(pdt);
     requestAnimationFrame(frame);
   }
 
@@ -1004,9 +1026,16 @@ function rampColor(t, stops) {
   canvas.addEventListener("wheel", (e) => {
     e.preventDefault();
     stopCinematic();
-    zoomT = Math.min(1.8, Math.max(0.6, zoomT * (e.deltaY < 0 ? 1.08 : 0.925)));
+    zoomT = Math.min(4, Math.max(0.3, zoomT * (e.deltaY < 0 ? 1.08 : 0.925)));
     if (reduceMotion) { zoom = zoomT; render(0); }
   }, { passive: false });
+
+  // -- idle auto-hide of the UI chrome ---------------------------------------
+  let lastActive = performance.now();
+  const controlsEl = document.querySelector(".controls");
+  const wake = () => { lastActive = performance.now(); document.body.classList.remove("idle"); };
+  for (const ev of ["pointermove", "pointerdown", "keydown", "wheel"])
+    window.addEventListener(ev, wake, { passive: true });
 
   // ===== controls ===========================================================
   let mode = "crystal", algoName = "bfs", kVal = 3, depthVal = 4, petalVal = 6;
@@ -1029,7 +1058,7 @@ function rampColor(t, stops) {
       mode === "crystal" ? "k = " + kVal
       : mode === "snow" ? "random"
       : (evo ? SEASON_LABELS[evo.season] : "evolving");
-    document.getElementById("rSec").textContent = 2 * scene.N;
+    document.getElementById("rSec").textContent = foldCopies();
   }
   function rebuild(regrow) {
     scene = buildScene({ mode, k: kVal, depth: depthVal, petals: petalVal, snowSize, snowSeed });
@@ -1089,7 +1118,7 @@ function rampColor(t, stops) {
   petalR.addEventListener("input", () => {
     petalVal = +petalR.value; petalV.textContent = petalVal;
     scene.N = petalVal;
-    for (const mo of motes) mo.copy = mo.copy % (2 * petalVal);
+    for (const mo of motes) mo.copy = mo.copy % foldCopies();
     needClear = true;
     refreshReadout();
     if (reduceMotion) render(0);
@@ -1100,6 +1129,19 @@ function rampColor(t, stops) {
   });
   speedR.addEventListener("input", () => { speed = +speedR.value; speedV.textContent = speed.toFixed(1); });
 
+  document.getElementById("pauseBtn").addEventListener("click", (e) => {
+    paused = !paused;
+    e.currentTarget.textContent = paused ? "▶" : "⏸";
+    e.currentTarget.classList.toggle("active", paused);
+  });
+  document.getElementById("spiralBtn").addEventListener("click", (e) => {
+    spiral = !spiral;
+    e.currentTarget.classList.toggle("active", spiral);
+    for (const mo of motes) mo.copy = mo.copy % foldCopies();
+    needClear = true;
+    refreshReadout();
+    if (reduceMotion) render(0);
+  });
   document.getElementById("soundBtn").addEventListener("click", (e) => {
     soundOn = !soundOn;
     e.currentTarget.classList.toggle("active", soundOn);
